@@ -23,6 +23,12 @@ The entire swap is **atomic and private** — zero-knowledge proofs ensure no on
 | [Bun](https://bun.sh/) | 1.x | `curl -fsSL https://bun.sh/install \| bash` |
 | [Claude Code](https://claude.ai/code) | Latest | `npm install -g @anthropic-ai/claude-code` |
 
+### Install to all your agents
+
+```bash
+npx skills install aztec-pioneers/aztec-private-escrow-skills
+```
+
 ### 1. Start the Aztec localnet
 
 ```bash
