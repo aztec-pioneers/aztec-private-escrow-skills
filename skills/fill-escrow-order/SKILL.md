@@ -32,23 +32,22 @@ Fill an existing private OTC escrow order as the buyer. Fetches orders from the 
    ```bash
    bun run balances
    ```
-   After a 1 ETH / 5,000 USDC swap:
-   - Seller: 9 ETH, 0 USDC
-   - Buyer: 1 ETH, 45,000 USDC
 
 ## Atomic Swap Mechanics
 
 The `fill_order` function performs three private operations in a single transaction:
 
-1. Buyer's USDC transferred privately into escrow via `transfer_private_to_private`
-2. USDC sent to seller via `transfer_private_to_commitment` (using partial note from escrow setup)
-3. Seller's ETH transferred privately from escrow to buyer via `transfer_private_to_private`
+1. Buyer's "buy" tokens transferred privately into escrow via `transfer_private_to_private`
+2. Those tokens sent to the seller via `transfer_private_to_commitment` (using the partial note created at escrow deploy time)
+3. Seller's "sell" tokens transferred privately from escrow to buyer via `transfer_private_to_private`
 4. Nullifier emitted to prevent double-fill
 
 All operations succeed or fail atomically. Zero-knowledge proofs ensure no party learns the other's balance or identity.
+
+The fill tx must be sent with `additionalScopes: [escrow.address]` so the buyer's PXE can read the escrow's config note. `fillOTCOrder` sets this by default.
 
 ## Troubleshooting
 
 - **"No orders found"**: Create an order first with `/create-escrow-order`
 - **"Balance too low"**: Run `bun run setup:mint` to mint more tokens
-- **"Unknown auth witness"**: Escrow contract instance reconstruction failed - check API response integrity
+- **"Unknown auth witness"**: Escrow contract instance reconstruction failed — check API response integrity, and that the order's `contractInstance` JSON wasn't corrupted in transit

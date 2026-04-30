@@ -23,8 +23,11 @@ Run all steps sequentially from `aztec-otc-desk/`. Each step MUST succeed before
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk
 
-bun install --ignore-scripts
-rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec
+# Install — postinstall builds the token artifact
+bun install
+
+# Build the escrow artifact
+cd packages/contracts && bun run build && cd ..
 
 cd packages/api && rm -f orders.sqlite
 bun run start &
@@ -43,13 +46,7 @@ bun run setup:mint
 bun run balances
 ```
 
-**Assert:**
-```
-ETH balance for seller: 10000000000000000000    (10 ETH)
-USDC balance for seller: 0
-ETH balance for buyer: 0
-USDC balance for buyer: 50000000000000000000000 (50,000 USDC)
-```
+**Capture initial values** as `INITIAL_SELLER_SELL`, `INITIAL_SELLER_BUY`, `INITIAL_BUYER_SELL`, `INITIAL_BUYER_BUY` — they depend on `ETH_MINT_AMOUNT` / `USDC_MINT_AMOUNT` in `cli/scripts/utils/index.ts` which the consumer can change.
 
 ### 3. Create Escrow Order
 
@@ -58,8 +55,8 @@ bun run order:create
 ```
 
 **Assert output contains:**
-- "Escrow contract deployed"
-- "1 ETH deposited to escrow"
+- "Escrow deployed at"
+- "ETH deposited to escrow"
 - "Order added to otc order service"
 
 ### 4. Fill Escrow Order
@@ -79,32 +76,28 @@ bun run order:fill
 bun run balances
 ```
 
-**Assert:**
-```
-ETH balance for seller: 9000000000000000000     (9 ETH)
-USDC balance for seller: 0
-ETH balance for buyer: 1000000000000000000      (1 ETH)
-USDC balance for buyer: 45000000000000000000000 (45,000 USDC)
-```
+**Assert (relative to initial):**
+- Seller's sell-token balance decreased by `ETH_SWAP_AMOUNT`
+- Seller's buy-token balance increased by `USDC_SWAP_AMOUNT`
+- Buyer's sell-token balance increased by `ETH_SWAP_AMOUNT`
+- Buyer's buy-token balance decreased by `USDC_SWAP_AMOUNT`
 
 ## Success Criteria
 
 1. All 5 steps complete without errors
-2. Seller's ETH decreased by exactly 1 ETH (10 -> 9)
-3. Buyer's ETH increased by exactly 1 ETH (0 -> 1)
-4. Buyer's USDC decreased by exactly 5,000 USDC (50,000 -> 45,000)
-5. All transactions were private (no public balance changes)
+2. Net change in token balances matches the swap exactly
+3. All transactions were private (no public balance changes)
 
 ## What This Tests
 
 - Token contract deployment and initialization
 - Private minting via `mint_to_private`
-- Escrow contract deployment with custom encryption keys
+- Escrow contract deployment with custom encryption keys + `additionalScopes` self-registration
 - Private token deposit with authorization witnesses (authwit)
 - Atomic swap via `fill_order` (3 private transfers in one tx)
 - Nullifier emission for replay protection
 - Orderflow API integration (create, query, delete)
-- PXE contract registration and private state sync
+- PXE contract registration and private state sync via `EmbeddedWallet`
 
 ## Cleanup
 
@@ -114,6 +107,7 @@ pkill -f "bun run src/index.ts"
 
 ## Troubleshooting
 
-- **"Artifact does not match expected class id"**: Missing overrides in root `package.json`. The root package.json MUST include overrides for `@aztec/foundation`, `@aztec/wallet-sdk`, `@aztec/pxe`, `@aztec/accounts`, `@aztec/stdlib`, `@aztec/aztec.js` all at `4.0.0-devnet.2-patch.3`.
 - **"No orders found"**: Create an order first with `bun run order:create`
 - **"Balance too low"**: Run `bun run setup:mint` to mint more tokens
+- **`additionalScopes`-related read failures**: A custom call site stripped the escrow address from send opts. The defaults in `contract.ts` include it — re-add if you've overridden.
+- **Token artifact mismatch**: `bun run scripts/token.ts` from project root to recompile against the running node version.

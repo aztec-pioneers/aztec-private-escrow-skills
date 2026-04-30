@@ -1,6 +1,6 @@
 ---
 name: check-balances
-description: Query private token balances of seller and buyer accounts on the Aztec localnet. Shows ETH and USDC balances.
+description: Query private token balances of seller and buyer accounts on the Aztec localnet.
 allowed-tools: Bash
 ---
 
@@ -24,26 +24,15 @@ bun run balances
 
 ```
 ==================[Balances]==================
-ETH balance for seller: <amount in wei>
-USDC balance for seller: <amount in wei>
-ETH balance for buyer: <amount in wei>
-USDC balance for buyer: <amount in wei>
+ETH balance for seller: <amount in token base units>
+USDC balance for seller: <amount in token base units>
+ETH balance for buyer: <amount in token base units>
+USDC balance for buyer: <amount in token base units>
 ==============================================
 ```
 
-## Reading Values
-
-| Raw Value | Human Readable |
-|-----------|----------------|
-| `10000000000000000000` | 10 ETH |
-| `9000000000000000000` | 9 ETH |
-| `1000000000000000000` | 1 ETH |
-| `50000000000000000000000` | 50,000 USDC |
-| `45000000000000000000000` | 45,000 USDC |
-| `5000000000000000000000` | 5,000 USDC |
-
-Both tokens use 18 decimals in this project.
+Values are reported in the token's base units (raw `u128`). Decimals are arbitrary per-token and the responsibility of whoever deployed the tokens; the contract is decimal-agnostic.
 
 ## How It Works
 
-Uses `balance_of_private()` on the Token contract via utility simulation (no transaction needed). Reads the private note tree for each account - fully private, reveals nothing on-chain.
+Uses `balance_of_private()` on the Token contract via utility simulation (no transaction needed). Reads the private note tree for each account — fully private, reveals nothing on-chain.

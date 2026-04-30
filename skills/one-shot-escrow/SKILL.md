@@ -6,7 +6,7 @@ allowed-tools: Bash Read Grep
 
 # One-Shot Private Escrow
 
-Execute the entire private escrow flow in a single run - from infrastructure deployment to completed atomic swap on Aztec localnet.
+Execute the entire private escrow flow in a single run — from infrastructure deployment to completed atomic swap on Aztec localnet.
 
 ## Prerequisites
 
@@ -22,9 +22,11 @@ Run every command below sequentially from the project root. Stop immediately if 
 # ---- SETUP ----
 cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk
 
-# Install dependencies (CRITICAL: --ignore-scripts flag required)
-bun install --ignore-scripts
-rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec
+# Install — postinstall builds the token artifact via scripts/token.ts
+bun install
+
+# Build escrow artifact (only needed once per .nr change)
+cd packages/contracts && bun run build && cd ..
 
 # Start orderflow API (fresh database)
 cd packages/api
@@ -38,7 +40,7 @@ sleep 2
 # Deploy ETH + USDC token contracts
 bun run setup:deploy
 
-# Mint tokens: 10 ETH -> seller, 50k USDC -> buyer
+# Mint tokens to seller (ETH) and buyer (USDC)
 bun run setup:mint
 
 # Show initial balances
@@ -46,10 +48,10 @@ echo "=== INITIAL BALANCES ==="
 bun run balances
 
 # ---- TRADE ----
-# Seller creates escrow order (deploys escrow, deposits 1 ETH, posts to API)
+# Seller creates escrow order (deploys escrow, deposits sell tokens, posts to API)
 bun run order:create
 
-# Buyer fills the order (swaps 5k USDC for 1 ETH atomically)
+# Buyer fills the order (atomic swap)
 bun run order:fill
 
 # Show final balances
@@ -61,31 +63,31 @@ kill $API_PID 2>/dev/null
 echo "Done! Private escrow completed successfully."
 ```
 
-## Expected Output
+## Expected Behavior
 
-**Initial:**
-- Seller: 10 ETH, 0 USDC
-- Buyer: 0 ETH, 50,000 USDC
+After the swap:
+- Seller's `sell_token` balance decreased by `ETH_SWAP_AMOUNT`
+- Seller's `buy_token` balance increased by `USDC_SWAP_AMOUNT`
+- Buyer's `sell_token` balance increased by `ETH_SWAP_AMOUNT`
+- Buyer's `buy_token` balance decreased by `USDC_SWAP_AMOUNT`
 
-**After swap:**
-- Seller: 9 ETH, 0 USDC (sold 1 ETH — USDC received via partial note)
-- Buyer: 1 ETH, 45,000 USDC (bought 1 ETH for 5,000 USDC)
+Exact numbers depend on the constants in `packages/cli/scripts/utils/index.ts` — they're consumer-defined.
 
 ## Verification Checklist
 
 - [ ] Token contracts deployed (2 deploy transactions)
 - [ ] Tokens minted to correct accounts (2 mint transactions)
 - [ ] Escrow contract deployed with unique keys
-- [ ] 1 ETH deposited into escrow privately
+- [ ] Sell tokens deposited into escrow privately
 - [ ] Order posted to orderflow API
 - [ ] Buyer filled order with atomic swap (1 fill transaction)
 - [ ] Order closed in API
-- [ ] Final balances match expected values
+- [ ] Final balances reflect the swap
 
 ## Troubleshooting
 
-- **"Artifact does not match expected class id"**: Missing overrides in root `package.json`. See `/deploy-escrow` skill for required overrides.
 - **Localnet not running**: Start with `aztec start --local-network` in another terminal
 - **API port in use**: `pkill -f "bun run src/index.ts"` then retry
-- **Install errors**: `rm -rf node_modules bun.lockb && bun install --ignore-scripts && rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec`
 - **DB errors**: Delete `packages/api/orders.sqlite` and restart API
+- **`additionalScopes` errors / "cannot read note"**: The send opts probably dropped the escrow address. The TS helpers default to including it; check any custom call sites.
+- **Token artifact mismatch**: `bun run scripts/token.ts` from the project root to recompile against the running node version.

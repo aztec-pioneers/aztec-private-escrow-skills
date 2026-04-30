@@ -11,79 +11,53 @@ Compile the Aztec Noir smart contracts and generate TypeScript bindings.
 
 ## Prerequisites
 
-- Aztec CLI v4.0.0-devnet.2-patch.3 (`aztec` in PATH)
+- Aztec CLI v4.2.0-aztecnr-rc.2 (`aztec` in PATH)
 - Bun runtime installed
+
+## How the build is wired
+
+Two artifacts: the **token** (built once on `bun install`) and the **escrow** (built whenever you change `.nr` sources).
+
+| Artifact | Trigger | What runs | Where it lands |
+|---|---|---|---|
+| Token | `bun install` (root `postinstall`) | `scripts/token.ts` | `packages/contracts/ts/src/artifacts/token/{Token.json,Token.ts}` (and `packages/contracts/target/otc_escrow-Token.json` for TXE) |
+| Escrow | `cd packages/contracts && bun run build` | `aztec compile && aztec codegen && bun run scripts/add_artifacts.ts` | `packages/contracts/ts/src/artifacts/escrow/{OTCEscrow.json,OTCEscrow.ts}` |
+
+You almost never need to invoke the token build manually. If you do (e.g., the submodule was just updated), run:
+
+```bash
+bun run scripts/token.ts                # also updates submodule
+bun run scripts/token.ts --skip-submodules   # uses what's already on disk
+```
 
 ## Steps
 
-### 1. Compile Token Contract (dependency)
+### 1. Build the escrow contract
 
-The token contract comes from the `aztec-standards` git submodule. Its artifact MUST be compiled with the same `aztec` CLI version as the running node — otherwise you get "Artifact does not match expected class id" errors.
+```bash
+cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk/packages/contracts
+bun run build
+```
+
+This is `aztec compile && aztec codegen target --outdir ts/src/artifacts/escrow -f && rm ts/src/artifacts/escrow/Token.ts && bun run scripts/add_artifacts.ts`. The codegen step also drops a `Token.ts` next to `OTCEscrow.ts` (because the contract imports the token); we delete it because we have a separately-managed token artifact in `ts/src/artifacts/token/`. `add_artifacts.ts` copies the JSON into place and rewrites the import path inside `OTCEscrow.ts` from `../../../../target/otc_escrow-OTCEscrow.json` → `./OTCEscrow.json`.
+
+### 2. (Re)build the token artifact, if you changed the standard
 
 ```bash
 cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk
+bun run scripts/token.ts
 ```
 
-If submodules haven't been initialized:
-```bash
-git clone https://github.com/defi-wonderland/aztec-standards.git deps/aztec-standards
-cd deps/aztec-standards && git checkout v4.0.0-devnet.2-patch.1
-```
-
-Compile and generate bindings:
-```bash
-cd deps/aztec-standards
-aztec compile --package token_contract
-aztec codegen ./target/token_contract-Token.json -o ./target -f
-```
-
-Copy to project and fix imports:
-```bash
-cp ./target/token_contract-Token.json ../../packages/contracts/ts/src/artifacts/token/Token.json
-cp ./target/Token.ts ../../packages/contracts/ts/src/artifacts/token/Token.ts
-```
-
-IMPORTANT: Fix the import path in Token.ts:
-```bash
-sed -i '' 's|./token_contract-Token.json|./Token.json|g' ../../packages/contracts/ts/src/artifacts/token/Token.ts
-```
-
-If submodules are already initialized (skip clone):
-```bash
-cd deps/aztec-standards
-rm -rf target
-aztec compile --package token_contract
-aztec codegen ./target/token_contract-Token.json -o ./target -f
-cp ./target/token_contract-Token.json ../../packages/contracts/ts/src/artifacts/token/Token.json
-cp ./target/Token.ts ../../packages/contracts/ts/src/artifacts/token/Token.ts
-sed -i '' 's|./token_contract-Token.json|./Token.json|g' ../../packages/contracts/ts/src/artifacts/token/Token.ts
-```
-
-### 2. Compile OTC Escrow Contract
-
-```bash
-cd packages/contracts
-aztec compile
-```
-
-### 3. Generate TypeScript Bindings
-
-```bash
-aztec codegen target/otc_escrow-OTCEscrow.json --outdir artifacts -f
-```
-
-### 4. Copy and Fix Artifacts
-
-```bash
-cp artifacts/OTCEscrow.ts ts/src/artifacts/escrow/OTCEscrow.ts
-cp target/otc_escrow-OTCEscrow.json ts/src/artifacts/escrow/OTCEscrow.json
-sed -i '' 's|./otc_escrow-OTCEscrow.json|./OTCEscrow.json|g' ts/src/artifacts/escrow/OTCEscrow.ts
-```
+Or just `bun install` again — postinstall re-runs.
 
 ## Source Structure
 
 ```
 packages/contracts/
+  Nargo.toml             # Noir dependencies (aztec, token_contract, poseidon)
+  package.json           # build/compile/codegen/copy-artifacts scripts
+  scripts/
+    add_artifacts.ts     # post-codegen artifact copy + import path fix
   src/
     main.nr              # OTCEscrow contract
     types/
@@ -91,7 +65,6 @@ packages/contracts/
     test/
       escrow.nr          # TXE test suite
       utils/             # Test helpers
-  Nargo.toml             # Dependencies
   ts/src/                # TypeScript library
     artifacts/           # Compiled artifacts + TS bindings
       index.ts           # Re-exports TokenContract + OTCEscrowContract
@@ -103,11 +76,11 @@ packages/contracts/
         Token.json       # Compiled artifact
     contract.ts          # Contract interaction functions
     constants.ts         # Token metadata, EscrowConfig type
-    fees.ts              # Fee payment helpers
+    fees.ts              # Fee payment helpers (SponsoredFPC, priority fees)
     utils.ts             # Utilities (wad, isTestnet)
 ```
 
-## Noir API Reference (v4.0.0-devnet.2-patch.3)
+## Noir API Reference
 
 ```noir
 use aztec::protocol::address::AztecAddress;
@@ -119,10 +92,8 @@ use aztec::macros::{aztec, notes::note, functions::{initializer, external}, stor
 use aztec::test::helpers::{test_environment::TestEnvironment, authwit, txe_oracles};
 ```
 
-Key changes from v3:
-- `protocol_types` -> `protocol`
-- `self.msg_sender()` returns `AztecAddress` directly (not `Option`)
-- `MessageDelivery.ONCHAIN_CONSTRAINED` (was `CONSTRAINED_ONCHAIN`)
+- `self.msg_sender()` returns `AztecAddress` directly
+- `MessageDelivery.ONCHAIN_CONSTRAINED` for guaranteed note delivery
 - `unsafe` blocks in unconstrained functions are unnecessary
 - `unsafe` in constrained code needs `// Safety:` comments
 
