@@ -34,23 +34,20 @@ Create a new private OTC escrow order. The seller deploys an escrow contract, de
 
 ## What Happens
 
-1. **Escrow Contract Deployment**: New `OTCEscrowContract` deployed with unique encryption keys storing:
+1. **Escrow Contract Deployment**: A new `OTCEscrowContract` is deployed with unique encryption keys storing:
    - `sell_token_address` / `sell_token_amount` (what the seller offers)
    - `buy_token_address` / `buy_token_amount` (what the seller wants)
    - A `partial_note` for the private transfer commitment
 
-2. **Token Deposit**: Seller's tokens transferred privately into escrow via `transfer_private_to_private` with an authorization witness. A nullifier prevents double-deposits.
+   The send opts include `additionalScopes: [escrow.address]` so the seller's PXE can read the config note that the deploy tx writes.
+
+2. **Token Deposit**: Seller's tokens transferred privately into escrow via `transfer_private_to_private` with an authorization witness. The deposit also runs with `additionalScopes: [escrow.address]`. A nullifier prevents double-deposits.
 
 3. **Order Registration**: Order posted to API with escrow contract instance and secret key for buyer discovery.
 
-## Default Trade Parameters
-
-- **Sell**: 1 ETH (1,000,000,000,000,000,000 wei)
-- **Buy**: 5,000 USDC (5,000,000,000,000,000,000,000 wei)
-
 ## Custom Trade Parameters
 
-Edit `ETH_SWAP_AMOUNT` and `USDC_SWAP_AMOUNT` in `packages/cli/scripts/utils/index.ts`, or use the contract API directly:
+Edit `ETH_SWAP_AMOUNT` and `USDC_SWAP_AMOUNT` in `packages/cli/scripts/utils/index.ts`, or call the contract API directly:
 
 ```typescript
 import { deployEscrowContract, depositToEscrow } from "@aztec-otc-desk/contracts/contract";
@@ -58,7 +55,11 @@ import { deployEscrowContract, depositToEscrow } from "@aztec-otc-desk/contracts
 const { contract, instance, secretKey } = await deployEscrowContract(
     wallet, sellerAddress,
     sellTokenAddress, customSellAmount,
-    buyTokenAddress, customBuyAmount
+    buyTokenAddress, customBuyAmount,
+    { send: { from: sellerAddress, additionalScopes: [/* will be filled by helper */] } }
 );
-await depositToEscrow(wallet, sellerAddress, contract, sellToken, customSellAmount);
+await depositToEscrow(
+    wallet, sellerAddress, contract, sellToken, customSellAmount,
+    { send: { from: sellerAddress, additionalScopes: [contract.address] } }
+);
 ```

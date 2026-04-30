@@ -35,7 +35,7 @@ private token swap end-to-end.
 Write a new Aztec escrow contract in Noir where a seller can lock ETH and
 set a price in USDC. A buyer can fill it by sending the exact USDC amount,
 triggering a private atomic swap. Include the TypeScript integration code
-with proper authwit patterns for v4.
+with proper authwit patterns.
 ```
 
 ## Test Everything

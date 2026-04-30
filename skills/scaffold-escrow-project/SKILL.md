@@ -10,13 +10,13 @@ Create a complete private OTC escrow system on Aztec from scratch. This skill pr
 
 ## Prerequisites
 
-- Aztec CLI v4.0.0-devnet.2-patch.3 (`aztec` in PATH)
+- Aztec CLI v4.2.0-aztecnr-rc.2 (`aztec` in PATH)
 - Bun runtime installed
 - Aztec localnet running on port 8080 (`aztec start --local-network`)
 
 ## What To Build
 
-Create a directory called `aztec-otc-desk/` (or whatever name the user requests) with the structure described in `project-structure.md`.
+Create a directory called `aztec-otc-desk/` (or whatever name the user requests) with the structure described below.
 
 ## Step-by-step
 
@@ -24,20 +24,25 @@ Create a directory called `aztec-otc-desk/` (or whatever name the user requests)
 
 ```
 aztec-otc-desk/
-├── package.json
+├── package.json                  # root: catalog + postinstall token build
 ├── .gitignore
+├── .gitmodules                   # deps/aztec-standards submodule
 ├── README.md
 ├── deps/
-│   └── aztec-standards/          # git submodule (or symlink)
+│   └── aztec-standards/          # git submodule (token contract source)
+├── scripts/
+│   └── token.ts                  # postinstall: compile + copy token artifact
 ├── packages/
 │   ├── contracts/
+│   │   ├── package.json          # JS package (codegen + add-artifacts scripts)
 │   │   ├── Nargo.toml
+│   │   ├── scripts/
+│   │   │   └── add_artifacts.ts  # post-codegen artifact copy + import fix
 │   │   ├── src/
 │   │   │   ├── main.nr
 │   │   │   └── types/
 │   │   │       └── config_note.nr
 │   │   └── ts/
-│   │       ├── package.json
 │   │       └── src/
 │   │           ├── index.ts
 │   │           ├── contract.ts
@@ -66,6 +71,7 @@ aztec-otc-desk/
 │       └── scripts/
 │           ├── deploy.ts
 │           ├── mint.ts
+│           ├── setup_accounts.ts
 │           ├── create_order.ts
 │           ├── buy_order.ts
 │           ├── print_balances.ts
@@ -79,65 +85,39 @@ aztec-otc-desk/
 ### 2. Write all files
 
 Use the templates in this skill directory:
-- `root-package-json.md` — root package.json (CRITICAL: correct workspaces + overrides)
-- `contract-template.md` — Noir contract source (from write-escrow-contract skill)
-- `config-note-template.md` — ConfigNote (from write-escrow-contract skill)
-- `ts-library-template.md` — All TypeScript library files
-- `api-template.md` — Orderflow API files
+- `root-package-json.md` — root `package.json`, sub-package manifests, `Nargo.toml`, `scripts/token.ts`, `.gitmodules`
+- `../write-escrow-contract/contract-template.md` — Noir contract source
+- `../write-escrow-contract/config-note-template.md` — ConfigNote
+- `ts-library-template.md` — All TypeScript library files (uses `EmbeddedWallet`, subpath imports, `additionalScopes`)
+- `api-template.md` — Orderflow API (plain Bun + SQLite, no Aztec deps)
 - `cli-template.md` — CLI scripts and utils
 
-### 3. Get token artifacts
-
-The Token contract artifact MUST match the running aztec version. Two options:
-
-**Option A: Compile from aztec-standards (recommended)**
-```bash
-# Clone or symlink aztec-standards at deps/aztec-standards
-git clone https://github.com/defi-wonderland/aztec-standards.git deps/aztec-standards
-cd deps/aztec-standards && git checkout v4.0.0-devnet.2-patch.1
-
-# Compile
-aztec compile --package token_contract
-
-# Generate TS bindings
-aztec codegen ./target/token_contract-Token.json -o ./target -f
-
-# Copy to project
-cp ./target/token_contract-Token.json ../../packages/contracts/ts/src/artifacts/token/Token.json
-cp ./target/Token.ts ../../packages/contracts/ts/src/artifacts/token/Token.ts
-
-# Fix import path in Token.ts
-sed -i '' 's|./token_contract-Token.json|./Token.json|g' ../../packages/contracts/ts/src/artifacts/token/Token.ts
-```
-
-**Option B: Copy from existing project**
-If a compiled artifact already exists at another path, copy Token.ts and Token.json directly.
-
-### 4. Get escrow artifacts
-
-Compile the OTCEscrow contract:
-```bash
-cd packages/contracts
-aztec compile
-aztec codegen target/otc_escrow-OTCEscrow.json --outdir artifacts -f
-cp artifacts/OTCEscrow.ts ts/src/artifacts/escrow/OTCEscrow.ts
-
-# Fix import path
-sed -i '' 's|./otc_escrow-OTCEscrow.json|./OTCEscrow.json|g' ts/src/artifacts/escrow/OTCEscrow.ts
-cp target/otc_escrow-OTCEscrow.json ts/src/artifacts/escrow/OTCEscrow.json
-```
-
-Or copy from an existing compiled project if available.
-
-### 5. Install dependencies
+### 3. Install dependencies (also builds the token artifact)
 
 ```bash
 cd aztec-otc-desk
-bun install --ignore-scripts
-rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec
+bun install
 ```
 
-### 6. Run the flow
+The root `postinstall` runs `scripts/token.ts`, which compiles the token contract from the `deps/aztec-standards` submodule (pinned to `dev` via `config.aztecStandardsVersion`) and writes:
+- `packages/contracts/ts/src/artifacts/token/Token.json` and `Token.ts` (TS bindings)
+- `packages/contracts/target/otc_escrow-Token.json` (for TXE tests if used)
+
+To recompile the token without re-running the submodule update:
+```bash
+bun run scripts/token.ts --skip-submodules
+```
+
+### 4. Build the escrow contract
+
+```bash
+cd packages/contracts
+bun run build
+```
+
+Runs `aztec compile && aztec codegen && bun run scripts/add_artifacts.ts` — the codegen drops bindings into `ts/src/artifacts/escrow/` and `add_artifacts.ts` rewrites the JSON import path.
+
+### 5. Run the flow
 
 ```bash
 # Start API
@@ -148,34 +128,24 @@ sleep 2
 cd ../cli
 bun run setup:deploy
 bun run setup:mint
-bun run balances          # Seller: 10 ETH, Buyer: 50k USDC
+bun run balances
 bun run order:create
 bun run order:fill
-bun run balances          # Seller: 9 ETH, Buyer: 1 ETH + 45k USDC
+bun run balances
 ```
 
-## CRITICAL Dependency Notes
+(Sandbox uses pre-funded test accounts from `getInitialTestAccountsData()`. For testnet, run `bun run setup:accounts` first to mint persistent seller/buyer accounts to `data/accounts.json`.)
 
-These are the hard-won lessons from debugging — do NOT skip:
+## Key version + dependency notes (4.2.0-aztecnr-rc.2)
 
-1. **Workspace paths**: Use `["packages/contracts/ts", "packages/api", "packages/cli"]` NOT `["packages/*"]`. The Noir project at `packages/contracts/` is NOT a JS package.
+1. **Workspaces**: `["packages/*"]`. Every directory under `packages/` is a JS package, including `packages/contracts/` (which owns the codegen + artifact-copy scripts).
 
-2. **@aztec/test-wallet version**: Only `4.0.0-devnet.1-patch.0` exists on npm. All other `@aztec/*` packages are `4.0.0-devnet.2-patch.3`.
+2. **Catalog**: All `@aztec/*` packages live at the same version (`4.2.0-aztecnr-rc.2`), pinned via root `workspaces.catalog`.
 
-3. **overrides are MANDATORY**: Without overrides, test-wallet pulls its own transitive deps at `4.0.0-devnet.1-patch.0` which causes class ID mismatches (SchnorrAccount artifact won't match the node). You MUST include:
-   ```json
-   "overrides": {
-     "@aztec/foundation": "4.0.0-devnet.2-patch.3",
-     "@aztec/wallet-sdk": "4.0.0-devnet.2-patch.3",
-     "@aztec/pxe": "4.0.0-devnet.2-patch.3",
-     "@aztec/accounts": "4.0.0-devnet.2-patch.3",
-     "@aztec/stdlib": "4.0.0-devnet.2-patch.3",
-     "@aztec/aztec.js": "4.0.0-devnet.2-patch.3"
-   }
-   ```
+3. **EmbeddedWallet**: `import { EmbeddedWallet } from "@aztec/wallets/embedded"`. Created via `EmbeddedWallet.create(node, { pxeConfig })`. Schnorr accounts come from `wallet.createSchnorrAccount(secret, salt, signingKey?)` and expose `.address`.
 
-4. **Nested dep cleanup**: Always run `rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec` after install.
+4. **`additionalScopes` is mandatory** for any private function that reads another contract's notes — escrow deploy (so the deployer can read its own newly-written config note), `deposit_tokens`, and `fill_order` all need it. The TS library defaults handle this; just don't strip `additionalScopes` if you customize.
 
-5. **Token artifact must match node version**: Compiling from aztec-standards with the matching `aztec` CLI version ensures the contract class IDs match. Copying artifacts compiled with a different version will fail with "Artifact does not match expected class id".
+5. **Subpath imports**: import from sub-paths, e.g. `@aztec/aztec.js/addresses`, `/fields`, `/contracts`, `/wallet`, `/node`, `/abi`, `/tx`, `/fee`; `@aztec/stdlib/{aztec-address,contract,auth-witness,keys,gas}`; `@aztec/wallets/embedded`; `@aztec/pxe/config`; `@aztec/noir-contracts.js/SponsoredFPC`.
 
-6. **Install flag**: Always use `bun install --ignore-scripts` to avoid postinstall failures.
+6. **Authwit pattern**: `getFunctionCall()` → `wallet.createAuthWit(from, { caller, call })` → `.with({ authWitnesses: [authwit] })`.

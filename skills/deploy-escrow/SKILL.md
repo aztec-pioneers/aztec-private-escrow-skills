@@ -24,8 +24,14 @@ Deploy the full Aztec private escrow infrastructure to the local devnet. Sets up
 2. **Install dependencies** (from `aztec-otc-desk/`):
    ```bash
    cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk
-   bun install --ignore-scripts
-   rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec
+   bun install
+   ```
+
+   `bun install` also runs the root `postinstall` (`scripts/token.ts`), which compiles the token contract from the `deps/aztec-standards` submodule and drops the artifact + bindings into `packages/contracts/ts/src/artifacts/token/`.
+
+   If the escrow artifact isn't already built (it should be on a fresh checkout), run:
+   ```bash
+   cd packages/contracts && bun run build && cd ..
    ```
 
 3. **Start the orderflow API** (background):
@@ -36,7 +42,7 @@ Deploy the full Aztec private escrow infrastructure to the local devnet. Sets up
 
 4. **Deploy token contracts:**
    ```bash
-   cd packages/cli && bun run setup:deploy
+   cd ../cli && bun run setup:deploy
    ```
    Deploys ETH and USDC tokens, writes addresses to `packages/cli/scripts/data/deployments.json`.
 
@@ -44,39 +50,20 @@ Deploy the full Aztec private escrow infrastructure to the local devnet. Sets up
    ```bash
    bun run setup:mint
    ```
-   Mints 10 ETH to the seller and 50,000 USDC to the buyer.
+   Mints `ETH_MINT_AMOUNT` to the seller and `USDC_MINT_AMOUNT` to the buyer (defaults: 10 ETH and 50,000 USDC, defined in `packages/cli/scripts/utils/index.ts`).
 
 6. **Verify balances:**
    ```bash
    bun run balances
    ```
-   Expected: Seller has 10 ETH, 0 USDC. Buyer has 0 ETH, 50,000 USDC.
 
-## CRITICAL: Dependency Configuration
+## Notes
 
-The root `package.json` MUST include these overrides to prevent version mismatches:
-
-```json
-{
-  "overrides": {
-    "@aztec/foundation": "4.0.0-devnet.2-patch.3",
-    "@aztec/wallet-sdk": "4.0.0-devnet.2-patch.3",
-    "@aztec/pxe": "4.0.0-devnet.2-patch.3",
-    "@aztec/accounts": "4.0.0-devnet.2-patch.3",
-    "@aztec/stdlib": "4.0.0-devnet.2-patch.3",
-    "@aztec/aztec.js": "4.0.0-devnet.2-patch.3"
-  }
-}
-```
-
-Without these, `@aztec/test-wallet` (only available at `4.0.0-devnet.1-patch.0`) pulls its own transitive deps at the older version, causing "Artifact does not match expected class id" errors when registering SchnorrAccount contracts.
-
-The workspace paths must be `["packages/contracts/ts", "packages/api", "packages/cli"]` — NOT `["packages/*"]` since `packages/contracts/` is a Noir project (not a JS package).
+- **Sandbox accounts**: `getOTCAccounts` (in `cli/scripts/utils/index.ts`) uses `getInitialTestAccountsData()` from `@aztec/accounts/testing` to recreate the pre-funded sandbox accounts. No `setup:accounts` step needed for sandbox.
+- **Testnet**: Run `bun run setup:accounts` first — it generates persistent seller/buyer accounts and writes them to `packages/cli/scripts/data/accounts.json`. You'll also need `L2_NODE_URL` and `SPONSORED_FPC_ADDRESS` in `.env`.
 
 ## Troubleshooting
 
-- **"Artifact does not match expected class id"**: Missing overrides in package.json. See CRITICAL section above.
-- **BaseField ctor error**: Nested test-wallet deps not cleaned. Run: `rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec`
 - **API disk I/O error**: Delete `packages/api/orders.sqlite` and restart API.
-- **postinstall fails**: Always use `--ignore-scripts` flag with `bun install`.
-- **Token artifact mismatch**: Token artifacts must be compiled with the same `aztec` CLI version as the running node. Recompile from `deps/aztec-standards` if needed.
+- **Token artifact mismatch**: Token must be compiled with the same `aztec` CLI version as the running node. Re-run `bun run scripts/token.ts` from the project root.
+- **"No such file: deployments.json"**: You haven't run `bun run setup:deploy` yet, or it errored before writing.

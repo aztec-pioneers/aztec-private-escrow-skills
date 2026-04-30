@@ -19,7 +19,7 @@ The entire swap is **atomic and private** — zero-knowledge proofs ensure no on
 
 | Tool | Version | Install |
 |------|---------|---------|
-| [Aztec CLI](https://docs.aztec.network/) | `4.0.0-devnet.2-patch.3` | `curl -s https://install.aztec.network | bash` then `aztec-up 4.0.0-devnet.2-patch.3` |
+| [Aztec CLI](https://docs.aztec.network/) | `4.2.0-aztecnr-rc.2` | `curl -s https://install.aztec.network | bash` then `aztec-up install 4.2.0-aztecnr-rc.2` |
 | [Bun](https://bun.sh/) | 1.x | `curl -fsSL https://bun.sh/install \| bash` |
 | [Claude Code](https://claude.ai/code) | Latest | `npm install -g @anthropic-ai/claude-code` |
 
@@ -60,7 +60,7 @@ Claude will:
 1. Scaffold the project using the `scaffold-escrow-project` skill
 2. Write all Noir contracts + TypeScript code from templates
 3. Compile token artifacts or copy pre-built ones
-4. Install dependencies with correct version overrides
+4. Install dependencies
 5. Start the orderflow API
 6. Deploy ETH + USDC tokens, mint to test accounts
 7. Create an escrow order (deploy escrow contract, deposit 1 ETH)
@@ -171,14 +171,12 @@ Run the end-to-end escrow test and verify all balances are correct after the swa
 
 ## Key Technical Details
 
-### Dependency Gotchas (captured in skills)
+### Dependencies
 
-- `@aztec/test-wallet` only exists at `4.0.0-devnet.1-patch.0` — all other `@aztec/*` packages are at `4.0.0-devnet.2-patch.3`
-- Root `package.json` MUST have `overrides` for `@aztec/foundation`, `@aztec/wallet-sdk`, `@aztec/pxe`, `@aztec/accounts`, `@aztec/stdlib`, `@aztec/aztec.js` — without these, transitive deps cause class ID mismatches
-- Token artifacts must be compiled with the matching `aztec` CLI version
-- Always `bun install --ignore-scripts` then `rm -rf node_modules/@aztec/test-wallet/node_modules/@aztec`
+- All `@aztec/*` packages share one version (`4.2.0-aztecnr-rc.2`), pinned via root `workspaces.catalog`
+- Token artifacts must be compiled with the same `aztec` CLI version as the running node — handled automatically by `scripts/token.ts` on `bun install`
 
-### Authwit Pattern (v4)
+### Authwit Pattern
 
 ```typescript
 // 1. Build call data
@@ -193,7 +191,7 @@ await escrow.methods.deposit(nonce).with({ authWitnesses: [authwit] }).send();
 
 ```
 aztec-otc-desk/
-├── package.json              # Workspaces + catalog + overrides
+├── package.json              # Workspaces + catalog
 ├── deps/aztec-standards/     # Token contract source (git submodule)
 ├── packages/
 │   ├── contracts/
