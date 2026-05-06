@@ -48,7 +48,7 @@ pub contract OTCEscrow {
         creator_role_secret: Field,
     ) {
         let creator = self.msg_sender();
-        let creator_pseudonym = compute_role_pseudonym(creator, creator_role_secret);
+        let creator_pseudonym = Poseidon2::hash([creator.to_field(), creator_role_secret], 2);
 
         let partial_note = self.call(Token::at(buy_token_address)
             .initialize_transfer_commitment(self.address, self.address));
@@ -76,7 +76,10 @@ pub contract OTCEscrow {
     fn deposit_tokens(_nonce: Field, creator_role_secret: Field) {
         let config = self.storage.config.get_note();
         let caller = self.msg_sender();
-        assert_role_pseudonym(caller, creator_role_secret, config.creator_pseudonym);
+        assert(
+            Poseidon2::hash([caller.to_field(), creator_role_secret], 2) == config.creator_pseudonym,
+            "invalid role secret",
+        );
 
         self.storage.state
             .replace(|state| state.transition(PHASE_CREATED, PHASE_OPEN), self.address)
@@ -111,7 +114,10 @@ pub contract OTCEscrow {
     fn void_created_order(creator_role_secret: Field) {
         let config = self.storage.config.get_note();
         let caller = self.msg_sender();
-        assert_role_pseudonym(caller, creator_role_secret, config.creator_pseudonym);
+        assert(
+            Poseidon2::hash([caller.to_field(), creator_role_secret], 2) == config.creator_pseudonym,
+            "invalid role secret",
+        );
 
         self.storage.state
             .replace(|state| state.transition(PHASE_CREATED, PHASE_VOID), self.address)
@@ -122,7 +128,10 @@ pub contract OTCEscrow {
     fn void_open_order(_nonce: Field, creator_role_secret: Field) {
         let config = self.storage.config.get_note();
         let caller = self.msg_sender();
-        assert_role_pseudonym(caller, creator_role_secret, config.creator_pseudonym);
+        assert(
+            Poseidon2::hash([caller.to_field(), creator_role_secret], 2) == config.creator_pseudonym,
+            "invalid role secret",
+        );
 
         self.storage.state
             .replace(|state| state.transition(PHASE_OPEN, PHASE_VOID), self.address)
@@ -133,23 +142,12 @@ pub contract OTCEscrow {
     }
 
     #[external("utility")]
-    unconstrained fn get_config() -> ConfigNote {
+    unconstrained fn get_config() -> pub ConfigNote {
         self.storage.config.view_note()
     }
 
     #[external("utility")]
-    unconstrained fn get_state() -> StateNote {
+    unconstrained fn get_state() -> pub StateNote {
         self.storage.state.view_note()
-    }
-
-    fn compute_role_pseudonym(caller: AztecAddress, role_secret: Field) -> Field {
-        Poseidon2::hash([caller.to_field(), role_secret], 2)
-    }
-
-    fn assert_role_pseudonym(caller: AztecAddress, role_secret: Field, expected_pseudonym: Field) {
-        assert(
-            compute_role_pseudonym(caller, role_secret) == expected_pseudonym,
-            "invalid role secret",
-        );
     }
 }

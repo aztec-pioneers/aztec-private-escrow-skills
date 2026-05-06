@@ -3,12 +3,12 @@ use aztec::{
     protocol::traits::{Deserialize, Packable, Serialize},
 };
 
-global PHASE_CREATED: Field = 0;
-global PHASE_OPEN: Field = 1;
-global PHASE_VOID: Field = 2;
-global PHASE_ACCEPTED: Field = 3;
-global PHASE_SETTLEMENT_IN_PROGRESS: Field = 4;
-global PHASE_FILLED: Field = 5;
+pub global PHASE_CREATED: Field = 0;
+pub global PHASE_OPEN: Field = 1;
+pub global PHASE_VOID: Field = 2;
+pub global PHASE_ACCEPTED: Field = 3;
+pub global PHASE_SETTLEMENT_IN_PROGRESS: Field = 4;
+pub global PHASE_FILLED: Field = 5;
 
 #[derive(Eq, Serialize, Deserialize, Packable)]
 #[note]
