@@ -11,4 +11,4 @@ Copy these files into the target project, then adapt names and protocol-specific
 - `templates/project/packages/contracts/ts/src/manifest.ts`
 - `templates/project/packages/contracts/ts/src/index.ts`
 
-These files target Aztec `4.2.0`, `EmbeddedWallet`, NodeNext runtime `.js` import suffixes, and `additionalScopes` for private cross-contract reads. This index exists so older references to `ts-library-template.md` still lead agents to the canonical template files.
+These files target Aztec `4.2.0`, `EmbeddedWallet`, NodeNext runtime `.js` import suffixes, package imports such as `@aztec-otc-desk/contracts`, and `additionalScopes` for private cross-contract reads. When adapting the project name, update both `packages/contracts/package.json` and `packages/contracts/tsconfig.json` paths so tests can import through `@<project-scope>/contracts`.

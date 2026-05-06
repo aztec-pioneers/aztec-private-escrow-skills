@@ -16,7 +16,9 @@
     "compile": "aztec compile",
     "codegen": "aztec codegen target --outdir ts/src/artifacts/escrow -f && rm ts/src/artifacts/escrow/Token.ts",
     "copy-artifacts": "bun run scripts/add_artifacts.ts",
-    "build": "bun run compile && bun run codegen && bun run copy-artifacts"
+    "build": "bun run compile && bun run codegen && bun run copy-artifacts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ts/test"
   },
   "dependencies": {
     "@aztec/aztec.js": "catalog:",
@@ -31,7 +33,8 @@
     "@aztec/wallets": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "typescript": "catalog:"

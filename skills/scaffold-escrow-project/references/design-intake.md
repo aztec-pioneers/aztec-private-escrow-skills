@@ -77,13 +77,15 @@ If there is any ambiguity, ask the user to confirm the field split before writin
 Default split:
 
 - `ConfigNote`: owner set to `self.address`, immutable creator pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms.
-- `StateNote`: owner set to `self.address`, phase, and only the bound taker/filler pseudonyms, timestamps, deadlines, or recovery metadata required by the selected phases.
+- `StateNote`: owner set to `self.address`, phase, and only the runtime-bound taker/filler pseudonyms, timestamps, deadlines, or recovery metadata required by the selected phases.
 
 Default role-secret bootstrap:
 
 - A per-caller role secret is created under `role_secret.at(caller)`, delivered to that caller, and its pseudonym is stored in `ConfigNote` or `StateNote`.
 - Atomic one-shot flows bind only the creator pseudonym by default.
-- Taker/filler pseudonyms are bound only when `ACCEPTED`, delayed settlement, or another explicit role-restricted phase requires them.
+- For open orders, do not ask for a designated taker by default. Any caller may accept or fill if they satisfy the settlement terms.
+- When an `ACCEPTED` phase is present, acceptance binds the accepting caller's role-secret pseudonym into `StateNote`, just as construction binds the creator pseudonym into `ConfigNote`.
+- Taker/filler pseudonyms are stored only when `ACCEPTED`, delayed settlement, or another explicit role-restricted phase needs to remember the runtime caller for later private actions.
 
 Ask compactly:
 

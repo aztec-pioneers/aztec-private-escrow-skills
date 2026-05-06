@@ -66,4 +66,4 @@ pub fill_window: u64,
 pub settlement_window: u64,
 ```
 
-Only include role pseudonyms that are actually known at config time. The creator pseudonym is usually known during construction. For atomic one-shot orders, do not add a filler role unless the user explicitly requires one. For open orders, taker/filler pseudonyms are often bound later during `ACCEPTED` state transitions rather than in the constructor.
+Only include role pseudonyms that are actually known at config time. The creator pseudonym is usually known during construction. For atomic one-shot orders, do not add a filler role unless the user explicitly requires one. For open orders, do not predesignate taker/filler pseudonyms in config unless the user asks for an allowlist; bind the accepting caller's pseudonym into `StateNote` during `ACCEPTED` instead.

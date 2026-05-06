@@ -29,6 +29,7 @@ Load these only when they are relevant:
 - `references/design-intake.md` - pre-scaffold questions for phase selection, timing windows, and config/state fields.
 - `references/lifecycle-phases.md` - CREATED/OPEN/VOID/ACCEPTED/SETTLEMENT_IN_PROGRESS/FILLED lifecycle design.
 - `references/manifest-schema.md` - offchain escrow instance manifest fields for participant handoff.
+- `references/testing-strategy.md` - monolithic TypeScript/Bun localnet test layout, fixtures, and failure cases.
 
 ## Companion Skills
 
@@ -59,7 +60,7 @@ Do not create `deps/aztec-standards` as a normal directory. A `.gitmodules` file
 
 ```
 aztec-otc-desk/
-├── package.json                  # root: catalog + postinstall token build
+├── package.json                  # root: catalog + postinstall token build + localnet script
 ├── .gitignore
 ├── .gitmodules                   # deps/aztec-standards submodule
 ├── README.md
@@ -81,7 +82,7 @@ aztec-otc-desk/
 │   │   │       ├── state_note.nr
 │   │   │       └── role_secret_note.nr
 │   │   └── ts/
-│   │       └── src/
+│   │       ├── src/
 │   │           ├── index.ts
 │   │           ├── contract.ts
 │   │           ├── constants.ts
@@ -96,12 +97,14 @@ aztec-otc-desk/
 │   │               └── token/
 │   │                   ├── Token.ts
 │   │                   └── Token.json
+│   │       └── test/
+│   │           └── escrow.test.ts # monolithic Bun localnet test harness
 ```
 
 ### 2. Write all files
 
 Use the templates in this skill directory:
-- `templates/project/` - real scaffold files. Copy this tree into the generated project first, including dotfiles such as `.gitignore` and `.gitmodules`, then adapt package names and protocol-specific code.
+- `templates/project/` - real scaffold files. Copy this tree into the generated project first, including dotfiles such as `.gitignore` and `.gitmodules`, then adapt package names and protocol-specific code. Use a scoped contracts package name like `@aztec-otc-desk/contracts`; for custom projects, derive the scope from the project name and update `packages/contracts/package.json` plus `packages/contracts/tsconfig.json` paths together.
 - `templates/root-package-json.md` - index for root `package.json`, sub-package manifests, `tsconfig.json`, `Nargo.toml`, `scripts/token.ts`, `.gitmodules`
 - `../write-escrow-contract/templates/contract-template.md` - Noir contract source
 - `../write-escrow-contract/templates/config-note-template.md` - ConfigNote
@@ -134,18 +137,24 @@ bun run build
 
 Runs `aztec compile && aztec codegen && bun run scripts/add_artifacts.ts` — the codegen drops bindings into `ts/src/artifacts/escrow/` and `add_artifacts.ts` rewrites the JSON import path.
 
+To run localnet for TypeScript tests:
+
+```bash
+bun run localnet
+```
+
 ### 5. Stop at SDK + contracts
 
 Do not scaffold an API, CLI, orderflow service, or runnable demo flow for now. Expose deployment, registration, authwit, manifest, and contract interaction helpers from the TypeScript SDK so an app or test harness can be added later.
 
-Testing for generated escrow projects should be TypeScript/Bun-based around the SDK and private interaction flow. Do not add contract-package test scripts to `package.json`; leave the generated contract package focused on compile/codegen/artifact-copy scripts.
+Testing for generated escrow projects should be TypeScript/Bun-based around the SDK and private interaction flow. Add a single monolithic `packages/contracts/ts/test/escrow.test.ts` by default. Keep `package.json` free of Aztec.nr/TXE test scripts.
 
 ## Non-Negotiables
 
 Keep the full details in the referenced files and templates. For scaffold runs, preserve these rules:
 
-1. **Version + TS shape**: Target Aztec `4.2.0`, Bun, `EmbeddedWallet`, workspace catalog pinning, subpath `@aztec/*` imports, and NodeNext `.js` suffixes for handwritten relative TS imports.
+1. **Version + TS shape**: Target Aztec `4.2.0`, Bun, `EmbeddedWallet`, workspace catalog pinning, package imports such as `@aztec-otc-desk/contracts`, subpath `@aztec/*` imports, and NodeNext `.js` suffixes for handwritten relative TS imports.
 2. **Secret contract handoff**: Private-only escrow contracts need an offchain manifest. Artifact/init data lets participants instantiate the wrapper; the contract secret key is required to read contract-owned private state.
 3. **Shared private state**: `ConfigNote` and `StateNote` are contract-owned private notes. Pass `additionalScopes` on deploy/deposit/fill calls that read or nullify escrow-owned notes.
 4. **Roles + lifecycle**: Use role-secret pseudonyms for private role checks, `StateNote` for all phase/cancel/fill state, and no custom fill/deposit nullifiers by default.
-5. **Output scope**: Generate contracts plus the TypeScript SDK only. Use TypeScript/Bun tests when tests are added; do not scaffold API, CLI, demo app, or Aztec.nr/TXE test scripts.
+5. **Output scope**: Generate contracts plus the TypeScript SDK and TypeScript/Bun tests only. Do not scaffold API, CLI, demo app, or Aztec.nr/TXE test scripts.

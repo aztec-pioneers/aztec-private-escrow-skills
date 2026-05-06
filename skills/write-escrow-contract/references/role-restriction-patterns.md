@@ -16,7 +16,7 @@ The contract secret key is a read/nullify capability for contract-owned private 
 
 Prefer role pseudonyms when creator/maker/taker/filler identity should not be stored as an address in shared config.
 
-1. Store caller role secrets in `Owned<PrivateImmutable<RoleSecretNote, Context>, Context>`.
+1. Store caller role secrets in `Owned<SinglePrivateImmutable<RoleSecretNote, Context>, Context>`.
 2. The note contains `owner: AztecAddress` and `randomness: Field`.
 3. `RoleSecretNote::new(owner)` uses `unsafe { random() }` for randomness.
 4. `RoleSecretNote::pseudonym()` returns `Poseidon2::hash([owner.to_field(), randomness], 2)`.
@@ -24,6 +24,8 @@ Prefer role pseudonyms when creator/maker/taker/filler identity should not be st
 6. A role-gated private entrypoint reads `self.storage.role_secret.at(caller).get_note()`, asserts `role_secret.owner == caller`, and asserts its pseudonym equals the configured role field.
 
 For atomic one-shot escrows, only create the creator role secret by default. Do not add a filler role unless the user explicitly requires a bound filler.
+
+For `ACCEPTED`, role binding is runtime caller binding: the accepting caller creates or presents their own role secret, and the contract writes that caller's pseudonym into `StateNote`. Do not ask for a "designated taker" unless the user explicitly wants an allowlisted counterparty.
 
 Use one `role_secret` storage slot for normal maker/taker/filler checks. Add another slot only if the same caller needs multiple unlinkable role pseudonyms inside one escrow.
 
@@ -46,7 +48,7 @@ Contract-owned shared config and lifecycle notes should still use `MessageDelive
 ## General Patterns
 
 1. Store role pseudonyms or role commitments in the shared private config/state note depending on privacy requirements. Do not store participant addresses for creator authorization unless the user explicitly chooses address-based auth.
-2. In each private entrypoint, read the config and assert the caller's role-secret pseudonym or supplied proof matches the required role.
+2. In each private entrypoint, read the config/state and assert the caller's role-secret pseudonym or supplied proof matches the required role. Creator checks usually compare against config; post-accept taker/filler checks usually compare against state.
 3. Use authwits for token movement from participant accounts into the escrow.
 4. Use `StateNote` lifecycle phase checks, deadlines, and asset availability for action gating. Do not add custom fill/deposit nullifiers in the default templates.
 5. If role membership must remain private, store commitments and require the caller to prove membership instead of exposing an address field.

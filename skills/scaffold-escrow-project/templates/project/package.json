@@ -21,7 +21,8 @@
     }
   },
   "scripts": {
-    "postinstall": "bun run scripts/token.ts"
+    "postinstall": "bun run scripts/token.ts",
+    "localnet": "aztec start --local-network"
   },
   "config": {
     "aztecVersion": "4.2.0",

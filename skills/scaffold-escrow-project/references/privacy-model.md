@@ -9,7 +9,7 @@ Default to private execution and private state. Add public state or public calls
 | Contract artifact, instance, constructor args, salt, deployer, public keys | Reconstructing the contract wrapper, verifying the address/initialization data, forming calls, and registering the artifact/instance locally | Reading encrypted contract-owned private notes |
 | Contract secret key | PXE/wallet access to decrypt, read, and potentially nullify notes owned by the contract address | Authorization by itself, unless the Noir contract deliberately treats key possession as sufficient |
 | Participant account key | Sending as that account and proving account-owned private state | Reading contract-owned private state without the contract secret key |
-| RoleSecretNote | Proving that the caller owns a private maker/taker/filler pseudonym expected by escrow config or lifecycle state | Reading shared escrow state or moving escrow-owned funds by itself |
+| RoleSecretNote | Proving that the caller owns a private maker/taker/filler pseudonym expected by escrow config or lifecycle state; for `ACCEPTED`, this is normally the accepting caller's runtime pseudonym | Reading shared escrow state, moving escrow-owned funds by itself, or proving the caller was predesignated |
 | Sensitive term plaintext | Lets a participant verify or perform an offchain action such as payment or delivery | Should not be recoverable from onchain encrypted logs or public/orderflow data |
 | Authwit | Permission for a specific cross-contract action, usually token movement | General escrow authority or reusable spending rights |
 

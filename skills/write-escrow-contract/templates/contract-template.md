@@ -6,7 +6,7 @@ For generalized escrows, do not copy this unchanged. Adapt the contract-owned li
 
 This template intentionally does not push custom order-level nullifiers for deposit or fill. State transitions, not custom nullifiers, gate cancellation and terminal fill status.
 
-The minimal OTC template below creates a per-caller role secret for the creator. It does not bind taker/filler pseudonyms because atomic one-shot fills are open to any filler that can satisfy the settlement terms. For ACCEPTED, SETTLEMENT_IN_PROGRESS, timers, or timeout recovery, extend the baseline `StateNote` fields and transitions and compare the caller's role-secret pseudonym to the relevant configured role field.
+The minimal OTC template below creates a per-caller role secret for the creator. It does not bind taker/filler pseudonyms because atomic one-shot fills are open to any filler that can satisfy the settlement terms. For ACCEPTED, SETTLEMENT_IN_PROGRESS, timers, or timeout recovery, extend the baseline `StateNote` fields and transitions. During `ACCEPTED`, store the accepting caller's role-secret pseudonym in state; later role-gated calls compare the caller's current pseudonym to that state field.
 
 ```noir
 use aztec::macros::aztec;
@@ -21,7 +21,7 @@ pub contract MyEscrow {
         },
         messages::message_delivery::MessageDelivery,
         protocol::address::AztecAddress,
-        state_vars::{Owned, PrivateImmutable, SinglePrivateImmutable, SinglePrivateMutable}
+        state_vars::{Owned, SinglePrivateImmutable, SinglePrivateMutable}
     };
     use token_contract::Token;
     use crate::types::{
@@ -37,7 +37,7 @@ pub contract MyEscrow {
     struct Storage<Context> {
         config: SinglePrivateImmutable<ConfigNote, Context>,
         state: SinglePrivateMutable<StateNote, Context>,
-        role_secret: Owned<PrivateImmutable<RoleSecretNote, Context>, Context>,
+        role_secret: Owned<SinglePrivateImmutable<RoleSecretNote, Context>, Context>,
     }
 
     #[external("private")]

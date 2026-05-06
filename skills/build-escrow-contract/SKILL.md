@@ -88,4 +88,4 @@ This skill is only for compile/codegen wiring. If a build failure requires Noir,
 
 ## Testing Scope
 
-Generated projects should use TypeScript/Bun tests around the SDK, deployment, authwit flow, private token operations, and contract interactions. Do not add contract-package test scripts to `package.json`; the build skill only compiles contracts and generates TS bindings.
+Generated projects should use TypeScript/Bun tests around the SDK, deployment, authwit flow, private token operations, and contract interactions. Keep Aztec.nr/TXE test scripts out of `package.json`; this build skill only compiles contracts and generates TS bindings.

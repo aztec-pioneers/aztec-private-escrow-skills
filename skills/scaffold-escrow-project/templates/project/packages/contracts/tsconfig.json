@@ -7,8 +7,13 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@aztec-otc-desk/contracts": ["./ts/src/index.ts"],
+      "@aztec-otc-desk/contracts/*": ["./ts/src/*"]
+    },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["scripts/**/*.ts", "ts/src/**/*.ts"]
+  "include": ["scripts/**/*.ts", "ts/src/**/*.ts", "ts/test/**/*.ts"]
 }

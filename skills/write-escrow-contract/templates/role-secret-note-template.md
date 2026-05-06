@@ -5,10 +5,10 @@ Use this note when escrow roles should be authenticated by a private pseudonym i
 Store it as:
 
 ```noir
-role_secret: Owned<PrivateImmutable<RoleSecretNote, Context>, Context>,
+role_secret: Owned<SinglePrivateImmutable<RoleSecretNote, Context>, Context>,
 ```
 
-This is one storage slot with one immutable note per owner. The caller is the underlying `Owned` key, and config/state decides which role the caller is satisfying by storing the expected pseudonym for creator, taker, filler, arbiter, etc.
+This is one storage slot with one immutable note per owner. The caller is the underlying `Owned` key, and config/state decides which role the caller is satisfying by storing the expected pseudonym for creator, taker, filler, arbiter, etc. A role secret authenticates the current caller pseudonymously; it is not a default mechanism for predesignating who may fill an open order.
 
 All notes must include an `owner` field. For role-secret notes, `owner` is the creator/participant address whose pseudonym is being authorized. Deliver creation messages to that caller with `MessageDelivery.ONCHAIN_UNCONSTRAINED`; do not deliver role secrets to the escrow address by default.
 
@@ -52,12 +52,12 @@ impl RoleSecretNote {
 ## Contract Snippets
 
 ```noir
-use aztec::state_vars::{Owned, PrivateImmutable};
+use aztec::state_vars::{Owned, SinglePrivateImmutable};
 use crate::types::role_secret_note::RoleSecretNote;
 
 #[storage]
 struct Storage<Context> {
-    role_secret: Owned<PrivateImmutable<RoleSecretNote, Context>, Context>,
+    role_secret: Owned<SinglePrivateImmutable<RoleSecretNote, Context>, Context>,
 }
 
 #[external("private")]
@@ -84,10 +84,12 @@ For atomic one-shot escrows, create only the creator role secret by default and 
 
 For non-atomic maker/taker/filler escrows, config or state may store fields such as `creator_pseudonym`, `taker_pseudonym`, or `filler_pseudonym`. The role-gated entrypoint reads `self.storage.role_secret.at(caller).get_note()` and checks that note's pseudonym against the relevant field.
 
+For `ACCEPTED`, create or read the accepting caller's role secret during the accept transition and write that caller's pseudonym into `StateNote`. Later fill, settlement-progress, recovery, or handoff calls compare the caller's current role-secret pseudonym to the stored state field.
+
 Default bootstrap:
 
 - Create the creator role secret during constructor/deploy flow and store the creator pseudonym in `ConfigNote`.
-- Create the taker/filler caller's role secret and bind its pseudonym when entering `ACCEPTED`.
+- Create or read the taker/filler caller's role secret and bind that current caller's pseudonym when entering `ACCEPTED`.
 - For atomic one-shot flows with no `ACCEPTED` phase, do not bind taker/filler pseudonyms unless explicitly required by the user's settlement design.
 - Reuse the same `role_secret` storage slot for normal creator/taker/filler checks. Add a separate slot only if the same caller needs multiple unlinkable role secrets inside the same escrow.
 
