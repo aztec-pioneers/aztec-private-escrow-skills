@@ -5,8 +5,10 @@ Use this note when escrow roles should be authenticated by a private pseudonym i
 Store it as:
 
 ```noir
-creator_role_secret: SinglePrivateImmutable<RoleSecretNote, Context>,
+role_secret: Owned<PrivateImmutable<RoleSecretNote, Context>, Context>,
 ```
+
+This is one storage slot with one immutable note per owner. The caller is the underlying `Owned` key, and config/state decides which role the caller is satisfying by storing the expected pseudonym for creator, taker, filler, arbiter, etc.
 
 All notes must include an `owner` field. For role-secret notes, `owner` is the creator/participant address whose pseudonym is being authorized. Deliver creation messages to that caller with `MessageDelivery.ONCHAIN_UNCONSTRAINED`; do not deliver role secrets to the escrow address by default.
 
@@ -50,12 +52,12 @@ impl RoleSecretNote {
 ## Contract Snippets
 
 ```noir
-use aztec::state_vars::SinglePrivateImmutable;
+use aztec::state_vars::{Owned, PrivateImmutable};
 use crate::types::role_secret_note::RoleSecretNote;
 
 #[storage]
 struct Storage<Context> {
-    creator_role_secret: SinglePrivateImmutable<RoleSecretNote, Context>,
+    role_secret: Owned<PrivateImmutable<RoleSecretNote, Context>, Context>,
 }
 
 #[external("private")]
@@ -64,7 +66,7 @@ fn create_creator_role_secret() -> Field {
     let note = RoleSecretNote::new(caller);
     let pseudonym = RoleSecretNote::compute_pseudonym(caller, note.randomness);
 
-    self.storage.creator_role_secret
+    self.storage.role_secret.at(caller)
         .initialize(note)
         .deliver_to(caller, MessageDelivery.ONCHAIN_UNCONSTRAINED);
 
@@ -72,7 +74,7 @@ fn create_creator_role_secret() -> Field {
 }
 
 fn assert_creator_pseudonym(caller: AztecAddress, expected_pseudonym: Field) {
-    let role_secret = self.storage.creator_role_secret.get_note();
+    let role_secret = self.storage.role_secret.at(caller).get_note();
     assert(role_secret.owner == caller, "role secret owner mismatch");
     assert(role_secret.pseudonym() == expected_pseudonym, "invalid role secret");
 }
@@ -80,12 +82,13 @@ fn assert_creator_pseudonym(caller: AztecAddress, expected_pseudonym: Field) {
 
 For atomic one-shot escrows, create only the creator role secret by default and store its pseudonym in `ConfigNote.creator_pseudonym`. Do not add a filler role unless the user explicitly asks for a bound filler.
 
-For non-atomic maker/taker/filler escrows, config or state may store fields such as `creator_pseudonym`, `taker_pseudonym`, or `filler_pseudonym`. The role-gated entrypoint checks the caller's role secret against the relevant field.
+For non-atomic maker/taker/filler escrows, config or state may store fields such as `creator_pseudonym`, `taker_pseudonym`, or `filler_pseudonym`. The role-gated entrypoint reads `self.storage.role_secret.at(caller).get_note()` and checks that note's pseudonym against the relevant field.
 
 Default bootstrap:
 
 - Create the creator role secret during constructor/deploy flow and store the creator pseudonym in `ConfigNote`.
-- Create the taker/filler role secret and bind its pseudonym when entering `ACCEPTED`.
+- Create the taker/filler caller's role secret and bind its pseudonym when entering `ACCEPTED`.
 - For atomic one-shot flows with no `ACCEPTED` phase, do not bind taker/filler pseudonyms unless explicitly required by the user's settlement design.
+- Reuse the same `role_secret` storage slot for normal creator/taker/filler checks. Add a separate slot only if the same caller needs multiple unlinkable role secrets inside the same escrow.
 
 If the constructor cannot create the creator role secret, pass a precomputed pseudonym from an already-established role-secret flow.

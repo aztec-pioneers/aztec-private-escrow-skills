@@ -82,23 +82,9 @@ packages/contracts/
     utils.ts             # Utilities (precision, isTestnet)
 ```
 
-## Noir API Reference
+## Contract Changes
 
-```noir
-use aztec::protocol::address::AztecAddress;
-use aztec::protocol::traits::{Serialize, Deserialize, Packable};
-use aztec::oracle::random::random;
-use aztec::state_vars::{SinglePrivateImmutable, SinglePrivateMutable};
-use aztec::messages::message_delivery::MessageDelivery;
-use aztec::macros::{aztec, notes::note, functions::{initializer, external}, storage::storage};
-```
-
-- `self.msg_sender()` returns `AztecAddress` directly
-- `MessageDelivery.ONCHAIN_CONSTRAINED` for guaranteed delivery of contract-owned shared notes
-- `MessageDelivery.ONCHAIN_UNCONSTRAINED` for role-secret notes delivered to the caller themselves
-- `self.context.get_anchor_block_header().timestamp()` for private phase deadline checks
-- `unsafe` blocks in unconstrained functions are unnecessary
-- `unsafe` in constrained code needs `// Safety:` comments
+This skill is only for compile/codegen wiring. If a build failure requires Noir, note, event, token, lifecycle, or SDK behavior changes, switch to `write-escrow-contract` and use the Aztec + Noir companion guidance there.
 
 ## Testing Scope
 

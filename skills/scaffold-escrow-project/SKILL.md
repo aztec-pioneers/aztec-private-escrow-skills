@@ -101,13 +101,14 @@ aztec-otc-desk/
 ### 2. Write all files
 
 Use the templates in this skill directory:
-- `templates/root-package-json.md` - root `package.json`, sub-package manifests, `tsconfig.json`, `Nargo.toml`, `scripts/token.ts`, `.gitmodules`
+- `templates/project/` - real scaffold files. Copy this tree into the generated project first, including dotfiles such as `.gitignore` and `.gitmodules`, then adapt package names and protocol-specific code.
+- `templates/root-package-json.md` - index for root `package.json`, sub-package manifests, `tsconfig.json`, `Nargo.toml`, `scripts/token.ts`, `.gitmodules`
 - `../write-escrow-contract/templates/contract-template.md` - Noir contract source
 - `../write-escrow-contract/templates/config-note-template.md` - ConfigNote
 - `../write-escrow-contract/templates/state-note-template.md` - required mutable StateNote for phase, cancellation, terminal-state, and timer flows
 - `../write-escrow-contract/templates/role-secret-note-template.md` - caller-owned RoleSecretNote for private role authentication
 - `../write-escrow-contract/templates/order-filled-event-template.md` - required private fill receipt event
-- `templates/ts-library-template.md` - All TypeScript library files (uses `EmbeddedWallet`, subpath imports, `additionalScopes`)
+- `templates/ts-library-template.md` - index for TypeScript SDK files (uses `EmbeddedWallet`, subpath imports, `additionalScopes`)
 
 ### 3. Install dependencies (also builds the token artifact)
 
@@ -139,34 +140,12 @@ Do not scaffold an API, CLI, orderflow service, or runnable demo flow for now. E
 
 Testing for generated escrow projects should be TypeScript/Bun-based around the SDK and private interaction flow. Do not add contract-package test scripts to `package.json`; leave the generated contract package focused on compile/codegen/artifact-copy scripts.
 
-## Key version + dependency notes (4.2.0)
+## Non-Negotiables
 
-1. **Workspaces**: `["packages/*"]`. Every directory under `packages/` is a JS package, including `packages/contracts/` (which owns the codegen + artifact-copy scripts).
+Keep the full details in the referenced files and templates. For scaffold runs, preserve these rules:
 
-2. **Catalog**: All `@aztec/*` packages live at the same version (`4.2.0`), pinned via root `workspaces.catalog`.
-
-3. **EmbeddedWallet**: `import { EmbeddedWallet } from "@aztec/wallets/embedded"`. Created via `EmbeddedWallet.create(node, { pxeConfig })`. Schnorr accounts come from `wallet.createSchnorrAccount(secret, salt, signingKey?)` and expose `.address`.
-
-4. **`additionalScopes` is mandatory** for any private function that reads another contract's notes — escrow deploy (so the deployer can read its own newly-written config note), `deposit_tokens`, and `fill_order` all need it. The TS library defaults handle this; just don't strip `additionalScopes` if you customize.
-
-5. **Subpath imports**: import from sub-paths, e.g. `@aztec/aztec.js/addresses`, `/fields`, `/contracts`, `/wallet`, `/node`, `/abi`, `/tx`, `/fee`; `@aztec/stdlib/{aztec-address,contract,auth-witness,keys,gas}`; `@aztec/wallets/embedded`; `@aztec/pxe/config`; `@aztec/noir-contracts.js/SponsoredFPC`.
-
-6. **TypeScript module resolution**: Use `module: "NodeNext"` and `moduleResolution: "NodeNext"`. Every handwritten relative import/export in `.ts` source must include its runtime `.js` extension, e.g. `./contract.js`, `./manifest.js`, and `./artifacts/index.js`. Do not remove explicit `.json` imports from generated Aztec bindings.
-
-7. **Authwit pattern**: `getFunctionCall()` → `wallet.createAuthWit(from, { caller, call })` → `.with({ authWitnesses: [authwit] })`.
-
-8. **Secret contracts**: For private-only escrow contracts, do not assume `node.getContract(address)` can recover the instance. Share an offchain escrow manifest with the artifact identity, contract instance, constructor args, salt/deployer/public keys, and key material as needed.
-
-9. **Capability split**: Artifact plus init knowledge lets a participant instantiate/register/call the contract wrapper, but it does not let them read contract-owned private state. The contract secret key is the private-state read/nullify capability and must be handled as sensitive access material.
-
-10. **Shared private state**: Escrow configuration and lifecycle state should usually be contract-owned private state. Anyone who should read it needs the contract secret key registered in their wallet/PXE; anyone who should act still needs to pass the Noir role/auth checks.
-
-11. **Lifecycle phases**: Model escrow state with explicit phases in `StateNote`. Atomic one-shot onchain settlement only needs CREATED -> OPEN -> FILLED plus VOID; longer offchain settlement flows may add ACCEPTED and SETTLEMENT_IN_PROGRESS. Load `references/lifecycle-phases.md` before designing custom phase transitions.
-
-12. **Role-secret auth**: For private creator/maker authentication, create a `RoleSecretNote` in `SinglePrivateImmutable<RoleSecretNote, Context>`, deliver it to the creator, store only its pseudonym as a `Field` in `ConfigNote`, and check that pseudonym in role-gated private entrypoints. Atomic one-shot flows do not add a filler role by default.
-
-13. **Config/state split**: Immutable order terms live in `ConfigNote`; mutable lifecycle data always lives in `StateNote`, even for atomic one-shot flows, so cancellation and terminal fill state are durable. Sensitive plaintext terms never go into onchain note messages; store commitments and deliver plaintexts offchain.
-
-14. **Fill receipts**: Every successful fill emits an `OrderFilled` private event to the escrow address with `MessageDelivery.ONCHAIN_CONSTRAINED`. Use a no-payload receipt by default. Include delivery commitments or event-carried scalar payloads only when the design intake explicitly confirms settlement requires those fields.
-
-15. **No custom fill/deposit nullifiers by default**: Do not add custom order-level nullifiers for deposit/fill. Use `StateNote` terminal phase checks for cancellation/fill status; token and note primitives still create their own nullifiers.
+1. **Version + TS shape**: Target Aztec `4.2.0`, Bun, `EmbeddedWallet`, workspace catalog pinning, subpath `@aztec/*` imports, and NodeNext `.js` suffixes for handwritten relative TS imports.
+2. **Secret contract handoff**: Private-only escrow contracts need an offchain manifest. Artifact/init data lets participants instantiate the wrapper; the contract secret key is required to read contract-owned private state.
+3. **Shared private state**: `ConfigNote` and `StateNote` are contract-owned private notes. Pass `additionalScopes` on deploy/deposit/fill calls that read or nullify escrow-owned notes.
+4. **Roles + lifecycle**: Use role-secret pseudonyms for private role checks, `StateNote` for all phase/cancel/fill state, and no custom fill/deposit nullifiers by default.
+5. **Output scope**: Generate contracts plus the TypeScript SDK only. Use TypeScript/Bun tests when tests are added; do not scaffold API, CLI, demo app, or Aztec.nr/TXE test scripts.

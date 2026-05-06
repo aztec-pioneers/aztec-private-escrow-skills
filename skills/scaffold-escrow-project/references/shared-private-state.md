@@ -20,13 +20,13 @@ Role secrets are the exception: a `RoleSecretNote` is delivered to the role hold
 | Mutable single lifecycle state | `SinglePrivateMutable<StateNote, Context>` with notes owned by `self.address` |
 | Sets of claims, deposits, fills, or receipts | `Owned<PrivateSet<T>>` |
 | Per-participant private state | `Map<AztecAddress, Owned<...>>` |
-| Single role secret | `SinglePrivateImmutable<RoleSecretNote, Context>` delivered to the role holder |
+| Per-caller role secret | `Owned<PrivateImmutable<RoleSecretNote, Context>, Context>` delivered to the role holder |
 
 ## Authorization
 
 The contract secret key grants read/nullify capability for contract-owned notes. It should not automatically grant business authority. Gate actions with explicit Noir checks: maker/taker roles, role commitments, lifecycle phases, deadlines, authwits, or other escrow-specific rules.
 
-For private role checks, read the caller's `RoleSecretNote`, assert its `owner` field equals the caller, compute its pseudonym, and compare it to the role pseudonym stored in contract-owned config or lifecycle state.
+For private role checks, read the caller's `RoleSecretNote` from `self.storage.role_secret.at(caller)`, assert its `owner` field equals the caller, compute its pseudonym, and compare it to the role pseudonym stored in contract-owned config or lifecycle state.
 
 For mutable lifecycle checks, remember that private mutable reads consume and recreate the current note. Always deliver the replacement state note with constrained onchain delivery.
 

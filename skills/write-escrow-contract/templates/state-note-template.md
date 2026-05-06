@@ -89,6 +89,8 @@ self.storage.state
 
 Private mutable reads still consume and recreate the state note. Always deliver the replacement note.
 
+Verification note: before changing this pattern, compile-test it against the target Aztec version. There is an open concern that calling `state_message.get_note()` may consume the `NoteMessage`, which would make a later `state_message.deliver(...)` a move-after-use error. If that is confirmed, use a check-only `replace(|state| state.assert_phase(...), self.address).deliver(...)` pattern instead.
+
 ```noir
 let state_message = self.storage.state.get_note();
 let state = state_message.get_note().assert_phase(PHASE_OPEN);

@@ -1,0 +1,4 @@
+[submodule "deps/aztec-standards"]
+	path = deps/aztec-standards
+	url = https://github.com/defi-wonderland/aztec-standards.git
+	branch = dev

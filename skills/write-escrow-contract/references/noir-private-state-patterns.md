@@ -32,6 +32,8 @@ Do not add custom order-level nullifiers for default deposit/fill replay protect
 
 Private mutable reads nullify and recreate the current note. The state variable API returns a note message for the replacement. Deliver it even when the function only inspected state.
 
+Verification note: before changing this pattern, compile-test it against the target Aztec version. There is an open concern that calling `state_message.get_note()` may consume the `NoteMessage`, which would make a later `state_message.deliver(...)` a move-after-use error. If that is confirmed, use a check-only `replace(|state| state.assert_phase(...), self.address).deliver(...)` pattern instead.
+
 ```noir
 let state_message = self.storage.state.get_note();
 let state = state_message.get_note().assert_phase(PHASE_OPEN);

@@ -1,0 +1,30 @@
+{
+  "name": "aztec-otc-desk",
+  "private": true,
+  "workspaces": {
+    "packages": ["packages/*"],
+    "catalog": {
+      "@aztec/aztec.js": "4.2.0",
+      "@aztec/accounts": "4.2.0",
+      "@aztec/constants": "4.2.0",
+      "@aztec/entrypoints": "4.2.0",
+      "@aztec/ethereum": "4.2.0",
+      "@aztec/foundation": "4.2.0",
+      "@aztec/noir-contracts.js": "4.2.0",
+      "@aztec/pxe": "4.2.0",
+      "@aztec/protocol-contracts": "4.2.0",
+      "@aztec/stdlib": "4.2.0",
+      "@aztec/wallets": "4.2.0",
+      "@aztec/wallet-sdk": "4.2.0",
+      "@types/bun": "latest",
+      "typescript": "^5.0.0"
+    }
+  },
+  "scripts": {
+    "postinstall": "bun run scripts/token.ts"
+  },
+  "config": {
+    "aztecVersion": "4.2.0",
+    "aztecStandardsVersion": "dev"
+  }
+}

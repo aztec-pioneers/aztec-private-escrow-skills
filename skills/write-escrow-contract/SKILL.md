@@ -70,7 +70,7 @@ poseidon = { git = "https://github.com/noir-lang/poseidon", tag = "v0.3.0" }
 After compiling with `aztec compile` and `aztec codegen` (or `bun run build` from the contracts package):
 
 ```typescript
-import { OTCEscrowContract, OTCEscrowContractArtifact } from "./artifacts/escrow/OTCEscrow";
+import { OTCEscrowContract, OTCEscrowContractArtifact } from "./artifacts/escrow/OTCEscrow.js";
 import { Fr } from "@aztec/aztec.js/fields";
 import { deriveKeys } from "@aztec/stdlib/keys";
 
@@ -131,7 +131,7 @@ const { receipt } = await escrow.methods
 4. **Config vs state**: Immutable order terms belong in `ConfigNote`; mutable phase, cancellation/fill terminal state, bound taker/filler pseudonyms, and phase deadlines belong in `StateNote`.
 5. **PrivateMutable reads**: A mutable private read consumes and recreates the note. Always deliver the replacement note, even if the function only inspected the state.
 6. **Sensitive terms**: Store salted commitments for recoverable usernames, addresses, or account handles. Deliver plaintexts offchain through the same secure handoff channel as the contract secret key.
-7. **Role secrets**: Store role-secret notes in `SinglePrivateImmutable<RoleSecretNote, Context>` for the relevant single role, deliver them to the role holder, and store role pseudonyms as `Field`, not participant addresses. Atomic one-shot flows use only the creator role by default.
+7. **Role secrets**: Store caller role-secret notes in `Owned<PrivateImmutable<RoleSecretNote, Context>, Context>`, deliver them to the role holder, and store role pseudonyms as `Field`, not participant addresses. Atomic one-shot flows bind only the creator pseudonym by default.
 8. **Replay posture**: Do not use custom `self.context.push_nullifier()` guards for deposit/fill in the default escrow templates. Notes and token spends still create primitive nullifiers; `StateNote` terminal transitions provide the lifecycle guard.
 9. **Atomic swaps**: Chain `self.call()` invocations — all succeed or all fail. Even one-shot atomic fills must transition `StateNote` to `FILLED` so they cannot be filled after `VOID` and so terminal state is durable.
 10. **Order-filled event**: Emit `OrderFilled` from every successful fill and deliver it to `self.address` with `MessageDelivery.ONCHAIN_CONSTRAINED`. Use a no-payload receipt by default. Add fields only when the design intake explicitly confirms settlement requires event-carried data.

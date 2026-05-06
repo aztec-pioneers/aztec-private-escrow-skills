@@ -16,14 +16,16 @@ The contract secret key is a read/nullify capability for contract-owned private 
 
 Prefer role pseudonyms when creator/maker/taker/filler identity should not be stored as an address in shared config.
 
-1. Store a single-role `RoleSecretNote` in `SinglePrivateImmutable<RoleSecretNote, Context>`.
+1. Store caller role secrets in `Owned<PrivateImmutable<RoleSecretNote, Context>, Context>`.
 2. The note contains `owner: AztecAddress` and `randomness: Field`.
 3. `RoleSecretNote::new(owner)` uses `unsafe { random() }` for randomness.
 4. `RoleSecretNote::pseudonym()` returns `Poseidon2::hash([owner.to_field(), randomness], 2)`.
 5. Config or state stores expected role pseudonyms as `Field` values, such as `creator_pseudonym`, `taker_pseudonym`, or `filler_pseudonym`.
-6. A role-gated private entrypoint reads the relevant `SinglePrivateImmutable<RoleSecretNote, Context>`, asserts `role_secret.owner == caller`, and asserts its pseudonym equals the configured role field.
+6. A role-gated private entrypoint reads `self.storage.role_secret.at(caller).get_note()`, asserts `role_secret.owner == caller`, and asserts its pseudonym equals the configured role field.
 
 For atomic one-shot escrows, only create the creator role secret by default. Do not add a filler role unless the user explicitly requires a bound filler.
+
+Use one `role_secret` storage slot for normal maker/taker/filler checks. Add another slot only if the same caller needs multiple unlinkable role pseudonyms inside one escrow.
 
 ### Creation and delivery
 
@@ -32,7 +34,7 @@ Role-secret notes should be emitted to the caller, not to the escrow contract. T
 Use:
 
 ```noir
-self.storage.creator_role_secret
+self.storage.role_secret.at(caller)
     .initialize(RoleSecretNote::new(caller))
     .deliver_to(caller, MessageDelivery.ONCHAIN_UNCONSTRAINED);
 ```

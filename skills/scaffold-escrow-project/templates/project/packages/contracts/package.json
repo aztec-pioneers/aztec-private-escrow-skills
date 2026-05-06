@@ -1,0 +1,39 @@
+{
+  "name": "@aztec-otc-desk/contracts",
+  "type": "module",
+  "main": "./ts/src/index.ts",
+  "types": "./ts/src/index.ts",
+  "exports": {
+    ".": "./ts/src/index.ts",
+    "./artifacts": "./ts/src/artifacts/index.ts",
+    "./constants": "./ts/src/constants.ts",
+    "./contract": "./ts/src/contract.ts",
+    "./fees": "./ts/src/fees.ts",
+    "./manifest": "./ts/src/manifest.ts",
+    "./utils": "./ts/src/utils.ts"
+  },
+  "scripts": {
+    "compile": "aztec compile",
+    "codegen": "aztec codegen target --outdir ts/src/artifacts/escrow -f && rm ts/src/artifacts/escrow/Token.ts",
+    "copy-artifacts": "bun run scripts/add_artifacts.ts",
+    "build": "bun run compile && bun run codegen && bun run copy-artifacts"
+  },
+  "dependencies": {
+    "@aztec/aztec.js": "catalog:",
+    "@aztec/accounts": "catalog:",
+    "@aztec/constants": "catalog:",
+    "@aztec/entrypoints": "catalog:",
+    "@aztec/ethereum": "catalog:",
+    "@aztec/foundation": "catalog:",
+    "@aztec/noir-contracts.js": "catalog:",
+    "@aztec/pxe": "catalog:",
+    "@aztec/stdlib": "catalog:",
+    "@aztec/wallets": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  }
+}

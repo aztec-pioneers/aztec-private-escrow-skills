@@ -6,7 +6,7 @@ For generalized escrows, do not copy this unchanged. Adapt the contract-owned li
 
 This template intentionally does not push custom order-level nullifiers for deposit or fill. State transitions, not custom nullifiers, gate cancellation and terminal fill status.
 
-The minimal OTC template below wires the creator role secret directly. It does not add taker/filler role secrets because atomic one-shot fills are open to any filler that can satisfy the settlement terms. For ACCEPTED, SETTLEMENT_IN_PROGRESS, timers, or timeout recovery, extend the baseline `StateNote` fields and transitions and add only the role secrets those phases require.
+The minimal OTC template below creates a per-caller role secret for the creator. It does not bind taker/filler pseudonyms because atomic one-shot fills are open to any filler that can satisfy the settlement terms. For ACCEPTED, SETTLEMENT_IN_PROGRESS, timers, or timeout recovery, extend the baseline `StateNote` fields and transitions and compare the caller's role-secret pseudonym to the relevant configured role field.
 
 ```noir
 use aztec::macros::aztec;
@@ -21,7 +21,7 @@ pub contract MyEscrow {
         },
         messages::message_delivery::MessageDelivery,
         protocol::address::AztecAddress,
-        state_vars::{SinglePrivateImmutable, SinglePrivateMutable}
+        state_vars::{Owned, PrivateImmutable, SinglePrivateImmutable, SinglePrivateMutable}
     };
     use token_contract::Token;
     use crate::types::{
@@ -37,7 +37,7 @@ pub contract MyEscrow {
     struct Storage<Context> {
         config: SinglePrivateImmutable<ConfigNote, Context>,
         state: SinglePrivateMutable<StateNote, Context>,
-        creator_role_secret: SinglePrivateImmutable<RoleSecretNote, Context>,
+        role_secret: Owned<PrivateImmutable<RoleSecretNote, Context>, Context>,
     }
 
     #[external("private")]
@@ -81,7 +81,7 @@ pub contract MyEscrow {
             .initialize(StateNote::created(self.address), self.address)
             .deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 
-        self.storage.creator_role_secret
+        self.storage.role_secret.at(creator)
             .initialize(creator_role_secret)
             .deliver_to(creator, MessageDelivery.ONCHAIN_UNCONSTRAINED);
     }
@@ -191,7 +191,7 @@ pub contract MyEscrow {
     }
 
     fn assert_creator_pseudonym(caller: AztecAddress, expected_pseudonym: Field) {
-        let role_secret = self.storage.creator_role_secret.get_note();
+        let role_secret = self.storage.role_secret.at(caller).get_note();
         assert(role_secret.owner == caller, "role secret owner mismatch");
         assert(role_secret.pseudonym() == expected_pseudonym, "invalid creator role");
     }

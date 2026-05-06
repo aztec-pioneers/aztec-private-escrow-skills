@@ -81,9 +81,9 @@ Default split:
 
 Default role-secret bootstrap:
 
-- Creator role secret is created during constructor/deploy flow, delivered to the creator, and its pseudonym is stored in `ConfigNote`.
-- Atomic one-shot flows do not add taker/filler role secrets by default.
-- Taker/filler role secrets are created and bound only when `ACCEPTED`, delayed settlement, or another explicit role-restricted phase requires them.
+- A per-caller role secret is created under `role_secret.at(caller)`, delivered to that caller, and its pseudonym is stored in `ConfigNote` or `StateNote`.
+- Atomic one-shot flows bind only the creator pseudonym by default.
+- Taker/filler pseudonyms are bound only when `ACCEPTED`, delayed settlement, or another explicit role-restricted phase requires them.
 
 Ask compactly:
 
