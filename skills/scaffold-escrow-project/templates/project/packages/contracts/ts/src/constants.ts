@@ -6,12 +6,10 @@ export const TOKEN_METADATA = {
 }
 
 export type EscrowConfig = {
-    owner: AztecAddress,
     creator_pseudonym: bigint,
     partial_note: bigint,
     sell_token_address: AztecAddress,
     sell_token_amount: bigint,
     buy_token_address: AztecAddress,
     buy_token_amount: bigint,
-    randomness: bigint,
 };

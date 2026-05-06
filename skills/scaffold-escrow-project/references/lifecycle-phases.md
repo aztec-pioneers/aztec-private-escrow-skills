@@ -35,7 +35,7 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 4. Time windows such as accept, fill, settlement, or recovery windows should be immutable contract configuration once deployed.
 5. Role/auth rules belong in Noir entrypoints. Contract secret key possession may let someone read shared state, but it is not itself maker/taker authority. Store creator pseudonyms in config when known at construction; store taker/filler pseudonyms in state only when a runtime transition such as `ACCEPTED` binds the caller. Later role-gated calls pass the same role secret and recompute the caller-bound pseudonym inline.
 6. Token method names are token-standard-specific. The lifecycle should name capabilities like deposit, refund, payout, and commitment completion instead of hard-coding one token contract API.
-7. Mutable phase reads must recreate and deliver the `StateNote`, even if the function only checked the current phase.
+7. Mutable phase reads/replacements must deliver the replacement `StateNote`.
 8. Use the anchor block timestamp for deadline checks.
 9. Every successful `FILLED` transition should emit an `OrderFilled` private event to the escrow address with `MessageDelivery.ONCHAIN_CONSTRAINED`.
 10. One-shot atomic settlement is terminal-phase-gated in `StateNote`, not custom-nullifier-gated. A completed or voided order should not be fillable again without an explicit new order/state reset design.

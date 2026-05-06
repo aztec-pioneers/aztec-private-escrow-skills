@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scaffold Escrow Project"
+  short_description: "Scaffold private Aztec escrow SDKs"
+  default_prompt: "Use $scaffold-escrow-project to scaffold an Aztec private escrow project with Noir contracts and a TypeScript SDK."

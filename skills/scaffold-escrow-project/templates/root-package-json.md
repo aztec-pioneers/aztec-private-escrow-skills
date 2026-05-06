@@ -10,6 +10,8 @@ Copy these files into the target project before applying requested package names
 - `templates/project/packages/contracts/package.json`
 - `templates/project/packages/contracts/tsconfig.json`
 - `templates/project/packages/contracts/Nargo.toml`
+- `templates/project/packages/contracts/src/main.nr`
+- `templates/project/packages/contracts/src/types/{mod.nr,config_note.nr,state_note.nr}`
 - `templates/project/packages/contracts/scripts/add_artifacts.ts`
 - `templates/project/packages/contracts/ts/test/setup.ts`
 

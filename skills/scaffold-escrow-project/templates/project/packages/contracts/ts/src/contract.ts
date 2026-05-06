@@ -207,7 +207,7 @@ export async function expectBalancePrivate(
 }
 
 export const getTokenContract = async (
-    wallet: Wallet, from: AztecAddress, node: AztecNode, tokenAddress: AztecAddress,
+    wallet: Wallet, node: AztecNode, tokenAddress: AztecAddress,
 ): Promise<TokenContract> => {
     const contractInstance = await node.getContract(tokenAddress);
     if (!contractInstance)

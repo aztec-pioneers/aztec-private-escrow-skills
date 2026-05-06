@@ -2,7 +2,7 @@
 
 Use contract-owned private state when escrow participants need a shared private view of terms or lifecycle state.
 
-Every note type must include an `owner: AztecAddress` field. For contract-owned shared notes (`ConfigNote`, `StateNote`) set this field to `self.address`. Role secrets are not notes in the default escrow pattern; they are caller-sampled `Field` values whose caller-bound pseudonyms are stored in config/state.
+Contract-owned shared notes (`ConfigNote`, `StateNote`) do not need manual `owner` fields. Use the storage operation owner argument (`self.address`) and avoid manual note randomness; the Aztec `#[note]` macro injects note-header randomness. Role secrets are not notes in the default escrow pattern; they are caller-sampled `Field` values whose caller-bound pseudonyms are stored in config/state.
 
 ## Storage
 

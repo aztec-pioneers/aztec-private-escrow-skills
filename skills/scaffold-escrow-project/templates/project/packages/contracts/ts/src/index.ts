@@ -16,5 +16,5 @@ export {
     type ManifestEcdhCurve,
     type ManifestKeyPair,
 } from "./manifest.js";
-export { precision, isTestnet } from "./utils.js";
+export { precision } from "./utils.js";
 export { getPriorityFeeOptions, getSponsoredPaymentMethod } from "./fees.js";

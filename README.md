@@ -36,6 +36,7 @@ aztec-otc-desk/
         ├── Nargo.toml
         ├── src/main.nr
         ├── src/types/config_note.nr
+        ├── src/types/state_note.nr
         └── ts/src/
             ├── contract.ts
             ├── constants.ts

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Escrow Contract"
+  short_description: "Build Aztec escrow bindings"
+  default_prompt: "Use $build-escrow-contract to compile the Aztec escrow contract and regenerate TypeScript bindings."

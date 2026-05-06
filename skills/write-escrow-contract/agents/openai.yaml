@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Escrow Contract"
+  short_description: "Design private Aztec escrow contracts"
+  default_prompt: "Use $write-escrow-contract to design or modify a private Aztec escrow contract in Noir."

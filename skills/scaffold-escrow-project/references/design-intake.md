@@ -76,8 +76,8 @@ If there is any ambiguity, ask the user to confirm the field split before writin
 
 Default split:
 
-- `ConfigNote`: owner set to `self.address`, immutable creator pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms.
-- `StateNote`: owner set to `self.address`, phase, and only the runtime-bound taker/filler pseudonyms, timestamps, deadlines, or recovery metadata required by the selected phases.
+- `ConfigNote`: immutable creator pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms.
+- `StateNote`: phase, and only the runtime-bound taker/filler pseudonyms, timestamps, deadlines, or recovery metadata required by the selected phases.
 
 Default role-secret bootstrap:
 
@@ -91,7 +91,7 @@ Default role-secret bootstrap:
 Ask compactly:
 
 ```text
-I’ll put immutable terms and creator pseudonym in ConfigNote, with owner=self.address, and phase fields in StateNote, also owner=self.address. Ambiguous fields: [list]. Confirm where they belong or tell me to infer.
+I’ll put immutable terms and creator pseudonym in ConfigNote, and phase/runtime fields in StateNote. Storage ownership is self.address. Ambiguous fields: [list]. Confirm where they belong or tell me to infer.
 ```
 
 Sensitive plaintexts such as usernames, account handles, addresses, locker codes, and emails should not go into onchain note messages. Store salted commitments and deliver plaintexts offchain with key material.
