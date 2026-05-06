@@ -2,7 +2,9 @@
 
 Successful fills should always emit an `OrderFilled` private event to the escrow address with constrained onchain delivery. This creates a shared private receipt for readers that registered the escrow secret key, without addressing the maker or taker directly.
 
-Do not use this event as a replay guard. It is a receipt and optional delivery carrier. One-shot atomic settlement is intentionally asset-gated: a replay can only succeed if the escrow is funded again. That is a sharp edge for makers, so document it when generating a one-shot escrow.
+Do not use this event as a replay guard. Use `StateNote` terminal phase checks, not the event and not custom order-level nullifiers, to prevent fills after `VOID` or `FILLED`.
+
+Default to a no-payload receipt. Add fields only when the design intake explicitly confirms that settlement requires data to be delivered or committed in the fill event. Atomic token settlement should normally use the no-payload form.
 
 ```noir
 use aztec::{
@@ -10,31 +12,25 @@ use aztec::{
     messages::message_delivery::MessageDelivery,
 };
 
-global DELIVERY_KIND_NONE: Field = 0;
-global DELIVERY_KIND_TOKEN_SETTLEMENT: Field = 1;
-global DELIVERY_KIND_PRIVATE_PROOF: Field = 2;
-global DELIVERY_KIND_PRIVATE_MESSAGE: Field = 3;
-
 #[event]
-struct OrderFilled {
-    filler_pseudonym: Field,
-    delivery_kind: Field,
-    delivery_commitment: Field,
-    delivery_data_0: Field,
-    delivery_data_1: Field,
-}
+struct OrderFilled {}
 ```
 
 Emit from every successful fill path:
 
 ```noir
-self.emit(OrderFilled {
-    filler_pseudonym,
-    delivery_kind,
-    delivery_commitment,
-    delivery_data_0,
-    delivery_data_1,
-}).deliver_to(self.address, MessageDelivery.ONCHAIN_CONSTRAINED);
+self.emit(OrderFilled {}).deliver_to(self.address, MessageDelivery.ONCHAIN_CONSTRAINED);
 ```
 
-Use `delivery_commitment` for the commitment to whatever was delivered or proven. Use `delivery_data_0` and `delivery_data_1` only for scalar delivery data that the design intentionally permits in an onchain private event. For recoverable secrets such as usernames, addresses, account handles, or locker codes, prefer delivering plaintext offchain and putting a salted commitment in the event unless the user explicitly chooses event delivery.
+## Optional Payload Variant
+
+Only add payload fields after asking the user what the fill event must carry. Common opt-in fields are a delivery/proof commitment, a small scalar payload, or a payload kind tag. Do not add placeholder fields, zero fields, random fields, filler pseudonyms, partial-note commitments, or token-settlement metadata just because they might be useful later.
+
+```noir
+#[event]
+struct OrderFilled {
+    delivery_commitment: Field,
+}
+```
+
+For recoverable secrets such as usernames, addresses, account handles, or locker codes, prefer delivering plaintext offchain and putting a salted commitment in the event unless the user explicitly chooses event delivery.

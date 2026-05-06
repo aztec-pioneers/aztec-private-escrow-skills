@@ -30,11 +30,15 @@ A private escrow usually needs:
 4. **Entry functions** - Deposit, fill, release, cancel, dispute, accept, advance settlement, or claim actions depending on the escrow shape.
 5. **Role checks** - Noir-enforced maker/taker/arbiter/admin rules. The contract secret key is not a role check by itself.
 6. **Fill receipts** - Every successful fill emits an `OrderFilled` private event to the escrow address with constrained onchain delivery.
-7. **Replay posture** - Do not add custom fill/deposit nullifiers by default. One-shot atomic fills are asset-gated and can replay only if the escrow is funded again; stateful flows should gate terminal transitions with `StateNote`.
+7. **Replay posture** - Do not add custom fill/deposit nullifiers by default. Gate cancellation and successful fills through terminal phases in `StateNote`, including atomic one-shot flows.
 
 ## Design Intake
 
 Before writing a new escrow contract or changing lifecycle/config/state structure, load `../scaffold-escrow-project/references/design-intake.md`. Confirm phase set, timing windows, and ambiguous config/state fields. If the user declines Plan mode or structured input, continue with explicit conservative assumptions.
+
+## Companion Skills
+
+When available, use Aztec and Noir development guidance together before writing or reviewing contract code. In Codex, prefer `aztec:aztec-developer` plus `noir-developer`; in Claude-style environments, use the equivalent `aztec-developer` plus `noir-developer` skills. Treat the Aztec skill as authoritative for private state, notes, wallet/PXE, authwits, deployment, and TypeScript integration, and the Noir skill as authoritative for `.nr` syntax, project shape, compilation, and `nargo` validation.
 
 ## Contract Template
 
@@ -42,7 +46,7 @@ See `templates/contract-template.md` in this skill directory for the full Noir c
 
 See `templates/config-note-template.md` for the ConfigNote implementation.
 
-See `templates/state-note-template.md` for optional mutable StateNote lifecycle state.
+See `templates/state-note-template.md` for required mutable StateNote lifecycle state.
 
 See `templates/role-secret-note-template.md` for the caller-owned RoleSecretNote implementation.
 
@@ -56,9 +60,9 @@ name = "my_escrow"
 type = "contract"
 
 [dependencies]
-aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v4.2.0-aztecnr-rc.2", directory = "noir-projects/aztec-nr/aztec" }
+aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v4.2.0", directory = "noir-projects/aztec-nr/aztec" }
 token_contract = { git = "https://github.com/defi-wonderland/aztec-standards/", tag = "dev", directory = "src/token_contract" }
-poseidon = { git = "https://github.com/noir-lang/poseidon", tag = "v0.2.6" }
+poseidon = { git = "https://github.com/noir-lang/poseidon", tag = "v0.3.0" }
 ```
 
 ## TypeScript Integration
@@ -124,13 +128,13 @@ const { receipt } = await escrow.methods
 1. **Capability split**: Artifact plus init data lets a participant instantiate/register the wrapper; the contract secret key is required to read contract-owned private state.
 2. **Authorization**: `.getFunctionCall()` + `wallet.createAuthWit(from, { caller, call })` + `.with({ authWitnesses })`
 3. **Cross-contract reads**: Pass `additionalScopes: [otherContract.address]` in the send opts so the caller's PXE can read notes the other contract owns (escrow config note, partial notes, etc.). Deploys/deposits/fills that touch another contract's notes need this in their send opts.
-4. **Config vs state**: Immutable order terms belong in `ConfigNote`; mutable phase, bound taker/filler pseudonyms, and phase deadlines belong in `StateNote`.
+4. **Config vs state**: Immutable order terms belong in `ConfigNote`; mutable phase, cancellation/fill terminal state, bound taker/filler pseudonyms, and phase deadlines belong in `StateNote`.
 5. **PrivateMutable reads**: A mutable private read consumes and recreates the note. Always deliver the replacement note, even if the function only inspected the state.
 6. **Sensitive terms**: Store salted commitments for recoverable usernames, addresses, or account handles. Deliver plaintexts offchain through the same secure handoff channel as the contract secret key.
-7. **Role secrets**: Store caller-owned role secrets as `Owned<PrivateImmutable<RoleSecretNote, Context>, Context>`. Config/state stores role pseudonyms as `Field`, not participant addresses, when role identity should stay private.
-8. **Replay posture**: Do not use custom `self.context.push_nullifier()` guards for deposit/fill in the default escrow templates. Notes and token spends still create primitive nullifiers; the removed surface is the extra order-level replay guard.
-9. **Atomic swaps**: Chain `self.call()` invocations — all succeed or all fail. One-shot atomic fills are intentionally open to replay if the maker funds the escrow again, so generated docs should call that out as a maker foot gun.
-10. **Order-filled event**: Emit `OrderFilled` from every successful fill and deliver it to `self.address` with `MessageDelivery.ONCHAIN_CONSTRAINED`. Use flexible delivery fields for proof/message commitments or deliberately event-carried scalar delivery data.
+7. **Role secrets**: Store role-secret notes in `SinglePrivateImmutable<RoleSecretNote, Context>` for the relevant single role, deliver them to the role holder, and store role pseudonyms as `Field`, not participant addresses. Atomic one-shot flows use only the creator role by default.
+8. **Replay posture**: Do not use custom `self.context.push_nullifier()` guards for deposit/fill in the default escrow templates. Notes and token spends still create primitive nullifiers; `StateNote` terminal transitions provide the lifecycle guard.
+9. **Atomic swaps**: Chain `self.call()` invocations — all succeed or all fail. Even one-shot atomic fills must transition `StateNote` to `FILLED` so they cannot be filled after `VOID` and so terminal state is durable.
+10. **Order-filled event**: Emit `OrderFilled` from every successful fill and deliver it to `self.address` with `MessageDelivery.ONCHAIN_CONSTRAINED`. Use a no-payload receipt by default. Add fields only when the design intake explicitly confirms settlement requires event-carried data.
 11. **Partial notes**: For atomic onchain fills, usually token-to-token but not guaranteed, have the maker post a receive-side partial note with the escrow as filler; then complete it from escrow-owned funds with the selected token standard's private-to-commitment primitive.
 12. **Message delivery**: Use `MessageDelivery.ONCHAIN_CONSTRAINED` for contract-owned shared notes and escrow-addressed fill events, and `MessageDelivery.ONCHAIN_UNCONSTRAINED` for notes delivered to the caller themselves. Do not put sensitive plaintexts in onchain private logs unless the user explicitly chooses that delivery model.
 13. **Time checks**: Use the anchor block timestamp, `self.context.get_anchor_block_header().timestamp()`, for phase deadlines.

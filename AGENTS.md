@@ -21,7 +21,7 @@ Ask Codex to build a private escrow contract package on Aztec. The `scaffold-esc
 
 ## Aztec Version
 
-All skills target **Aztec v4.2.0-aztecnr-rc.2**. All `@aztec/*` packages are pinned at the same version via the root `package.json` `workspaces.catalog`. The wallet API is `EmbeddedWallet` from `@aztec/wallets/embedded`.
+All skills target **Aztec v4.2.0**. All `@aztec/*` packages are pinned at the same version via the root `package.json` `workspaces.catalog`. The wallet API is `EmbeddedWallet` from `@aztec/wallets/embedded`.
 
 ## Tokens are decimal-agnostic
 

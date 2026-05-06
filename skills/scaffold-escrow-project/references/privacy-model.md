@@ -20,5 +20,5 @@ Default to private execution and private state. Add public state or public calls
 3. Put role restrictions in Noir logic. Do not rely on possession of the contract secret key as the only role gate unless the user explicitly wants that model.
 4. Keep offchain manifests and future discovery services as handoff layers. They should not become the source of truth for escrow state.
 5. If a participant receives an artifact/instance manifest without the contract secret key, they can instantiate the contract but should be expected to fail private reads that require contract-owned notes.
-6. Caller-owned role-secret notes are the main exception to the contract-owned shared-state default. Emit them to the caller and store only their pseudonym in shared config or lifecycle state.
+6. Role-secret notes are the main exception to the contract-owned shared-state default. Their `owner` field is the creator/participant address, they are delivered to that caller, and only their pseudonym is stored in shared config or lifecycle state.
 7. For recoverable sensitive terms, store salted commitments onchain and deliver plaintexts offchain through the same secure handoff channel as the contract secret key.

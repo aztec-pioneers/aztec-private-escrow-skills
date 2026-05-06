@@ -7,18 +7,18 @@
   "workspaces": {
     "packages": ["packages/*"],
     "catalog": {
-      "@aztec/aztec.js": "4.2.0-aztecnr-rc.2",
-      "@aztec/accounts": "4.2.0-aztecnr-rc.2",
-      "@aztec/constants": "4.2.0-aztecnr-rc.2",
-      "@aztec/entrypoints": "4.2.0-aztecnr-rc.2",
-      "@aztec/ethereum": "4.2.0-aztecnr-rc.2",
-      "@aztec/foundation": "4.2.0-aztecnr-rc.2",
-      "@aztec/noir-contracts.js": "4.2.0-aztecnr-rc.2",
-      "@aztec/pxe": "4.2.0-aztecnr-rc.2",
-      "@aztec/protocol-contracts": "4.2.0-aztecnr-rc.2",
-      "@aztec/stdlib": "4.2.0-aztecnr-rc.2",
-      "@aztec/wallets": "4.2.0-aztecnr-rc.2",
-      "@aztec/wallet-sdk": "4.2.0-aztecnr-rc.2",
+      "@aztec/aztec.js": "4.2.0",
+      "@aztec/accounts": "4.2.0",
+      "@aztec/constants": "4.2.0",
+      "@aztec/entrypoints": "4.2.0",
+      "@aztec/ethereum": "4.2.0",
+      "@aztec/foundation": "4.2.0",
+      "@aztec/noir-contracts.js": "4.2.0",
+      "@aztec/pxe": "4.2.0",
+      "@aztec/protocol-contracts": "4.2.0",
+      "@aztec/stdlib": "4.2.0",
+      "@aztec/wallets": "4.2.0",
+      "@aztec/wallet-sdk": "4.2.0",
       "@types/bun": "latest",
       "typescript": "^5.0.0"
     }
@@ -27,7 +27,7 @@
     "postinstall": "bun run scripts/token.ts"
   },
   "config": {
-    "aztecVersion": "4.2.0-aztecnr-rc.2",
+    "aztecVersion": "4.2.0",
     "aztecStandardsVersion": "dev"
   }
 }
@@ -79,11 +79,34 @@ All `@aztec/*` packages share one version, pinned via the root `workspaces.catal
 }
 ```
 
+## Sub-package: packages/contracts/tsconfig.json
+
+Use NodeNext and keep handwritten relative TS imports/exports suffixed with `.js`. Generated Aztec bindings may import JSON artifacts with explicit `.json` extensions.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["scripts/**/*.ts", "ts/src/**/*.ts"]
+}
+```
+
 ## .gitignore
 
 ```
 node_modules/
 target/
+codegenCache.json
+**/codegenCache.json
 ```
 
 ## Nargo.toml (packages/contracts/Nargo.toml)
@@ -94,14 +117,14 @@ name = "otc_escrow"
 type = "contract"
 
 [dependencies]
-aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v4.2.0-aztecnr-rc.2", directory = "noir-projects/aztec-nr/aztec" }
+aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v4.2.0", directory = "noir-projects/aztec-nr/aztec" }
 token_contract = { git = "https://github.com/defi-wonderland/aztec-standards/", tag = "dev", directory = "src/token_contract" }
-poseidon = { git = "https://github.com/noir-lang/poseidon", tag = "v0.2.6" }
+poseidon = { git = "https://github.com/noir-lang/poseidon", tag = "v0.3.0" }
 ```
 
 ## scripts/token.ts (root postinstall)
 
-This compiles the token artifact off of the `aztec-standards` submodule and copies the result into `packages/contracts/ts/src/artifacts/token/` (and `packages/contracts/target/` for TXE tests). It runs automatically on `bun install` via the root `postinstall` script.
+This compiles the token artifact off of the `aztec-standards` submodule and copies the result into `packages/contracts/ts/src/artifacts/token/`. It runs automatically on `bun install` via the root `postinstall` script. The script initializes git only when `.git` is missing, then registers and checks out the `aztec-standards` submodule if it has not been added yet. `.gitmodules` alone is not enough.
 
 ```ts
 #!/usr/bin/env bun
@@ -111,6 +134,8 @@ import { readFile, writeFile, mkdir, rm } from "fs/promises";
 import { config } from "../package.json" with { type: "json" };
 
 interface ScriptOptions { skipSubmodules: boolean }
+const AZTEC_STANDARDS_URL = "https://github.com/defi-wonderland/aztec-standards.git";
+const AZTEC_STANDARDS_PATH = "deps/aztec-standards";
 
 function parseArgs(): ScriptOptions {
   const args = process.argv.slice(2);
@@ -128,19 +153,50 @@ async function replaceInFile(filePath: string, search: string, replace: string) 
   await writeFile(filePath, content.replace(new RegExp(escaped, "g"), replace), "utf-8");
 }
 
-async function exec(cmd: string, args: string[] = [], cwd?: string) {
+async function exec(cmd: string, args: string[] = [], cwd = ".") {
+  if (!existsSync(cwd)) throw new Error(`cwd does not exist: ${cwd}`);
   const proc = spawn({ cmd: [cmd, ...args], cwd, stdout: "inherit", stderr: "inherit" });
   const code = await proc.exited;
   if (code !== 0) throw new Error(`${cmd} ${args.join(" ")} failed (${code})`);
 }
 
+async function ensureGitRepo() {
+  if (existsSync(".git")) return;
+  await exec("git", ["init"]);
+}
+
+async function ensureAztecStandards(skipSubmodules: boolean) {
+  if (skipSubmodules) {
+    if (!existsSync(AZTEC_STANDARDS_PATH)) {
+      throw new Error(`${AZTEC_STANDARDS_PATH} is missing; run without --skip-submodules first`);
+    }
+    return;
+  }
+
+  await ensureGitRepo();
+
+  if (!existsSync(`${AZTEC_STANDARDS_PATH}/.git`)) {
+    await mkdir("deps", { recursive: true });
+    await exec("git", [
+      "submodule",
+      "add",
+      "--force",
+      "-b",
+      config.aztecStandardsVersion,
+      AZTEC_STANDARDS_URL,
+      AZTEC_STANDARDS_PATH,
+    ]);
+  }
+
+  await exec("git", ["submodule", "update", "--init", "--recursive", "--remote"]);
+  await exec("git", ["fetch", "--tags"], AZTEC_STANDARDS_PATH);
+  await exec("git", ["checkout", config.aztecStandardsVersion], AZTEC_STANDARDS_PATH);
+}
+
 async function main() {
   const { skipSubmodules } = parseArgs();
-  if (!skipSubmodules) {
-    await exec("git", ["submodule", "update", "--init", "--recursive", "--remote"]);
-    await exec("git", ["fetch", "--tags"], "deps/aztec-standards");
-    await exec("git", ["checkout", config.aztecStandardsVersion], "deps/aztec-standards");
-  } else {
+  await ensureAztecStandards(skipSubmodules);
+  if (skipSubmodules) {
     if (existsSync("deps/aztec-standards/target"))
       await rm("deps/aztec-standards/target", { recursive: true, force: true });
   }
@@ -154,10 +210,6 @@ async function main() {
     "./token_contract-Token.json",
     "./Token.json"
   );
-
-  if (!existsSync("packages/contracts/target"))
-    await mkdir("packages/contracts/target", { recursive: true });
-  await exec("cp", ["./target/token_contract-Token.json", "../../packages/contracts/target/otc_escrow-Token.json"], "deps/aztec-standards");
 }
 
 if (import.meta.main) main();

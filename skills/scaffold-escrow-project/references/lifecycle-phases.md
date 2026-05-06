@@ -2,7 +2,7 @@
 
 Use phases as protocol state, not UI labels. Store lifecycle state in contract-owned private state so authorized participants can share a private view without making the order publicly discoverable.
 
-Keep immutable terms in `ConfigNote` and mutable lifecycle fields in `StateNote` when the order can advance after construction.
+Keep immutable terms in `ConfigNote` and mutable lifecycle fields in `StateNote`. Atomic one-shot flows still use `StateNote` so `VOID` and `FILLED` are durable terminal phases.
 
 Before implementing lifecycle state for a fresh project, confirm the phase set with the user. Use a multiselect UI if available; otherwise recommend a preset and ask the user to reply `ok` or provide the exact phase list.
 
@@ -20,7 +20,7 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 ## Defaults
 
 - Do not move maker funds in the constructor unless the user explicitly has a working authwit pattern for deploy-time transfer. Treat `CREATED` as config initialization and `OPEN` as the deposit transaction.
-- For atomic one-shot onchain settlement, use `CREATED -> OPEN -> FILLED` with `VOID` before fill if the protocol allows cancellation. This is usually token-to-token, but can be any delivery that settles fully in one onchain fill action.
+- For atomic one-shot onchain settlement, use `CREATED -> OPEN -> FILLED` with `VOID` before fill. This is usually token-to-token, but can be any delivery that settles fully in one onchain fill action.
 - Add `ACCEPTED` when filling requires offchain action or proof generation and the taker needs protection from maker cancellation.
 - Add `SETTLEMENT_IN_PROGRESS` when proof of initiation is not proof of final delivery, such as cancellable ecommerce orders or locker-style deliveries that still need a recipient handoff.
 - Default `ACCEPTED` fill window to 1 hour unless the user specifies otherwise.
@@ -37,7 +37,7 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 7. Mutable phase reads must recreate and deliver the `StateNote`, even if the function only checked the current phase.
 8. Use the anchor block timestamp for deadline checks.
 9. Every successful `FILLED` transition should emit an `OrderFilled` private event to the escrow address with `MessageDelivery.ONCHAIN_CONSTRAINED`.
-10. One-shot atomic settlement is intentionally asset-gated, not custom-nullifier-gated. A replayed fill can only succeed if the escrow has been funded again, so generated one-shot docs should warn makers not to refill a completed order.
+10. One-shot atomic settlement is terminal-phase-gated in `StateNote`, not custom-nullifier-gated. A completed or voided order should not be fillable again without an explicit new order/state reset design.
 
 ## Token-to-Token Partial Notes
 
@@ -55,5 +55,5 @@ For token-to-token fills where the maker should receive privately:
 
 - Token-to-token: taker transfers into escrow, escrow completes maker's partial note, escrow pays taker.
 - Proof-only delivery: taker submits a zkTLS/zkEmail/private proof matching config, then escrow pays taker.
-- Private message delivery: taker includes a delivery commitment or intentionally event-carried scalar payload in the escrow-addressed `OrderFilled` event, or emits a separate private event/note to the escrow when the payload does not fit.
+- Private message delivery: ask during intake whether `OrderFilled` must carry a delivery commitment or intentionally event-carried scalar payload. If not explicitly required, keep `OrderFilled` as a no-payload receipt and deliver plaintext offchain or through a separate purpose-built event/note.
 - Delayed delivery: taker proves initiation, phase advances to `SETTLEMENT_IN_PROGRESS`, and final release waits for delivery proof or configured timeout handling.

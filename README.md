@@ -22,7 +22,7 @@ There is intentionally no API, CLI, orderflow server, or runnable app scaffold r
 
 ## Aztec Version
 
-All skills target **Aztec v4.2.0-aztecnr-rc.2**. All `@aztec/*` packages are pinned at the same version via the root `package.json` `workspaces.catalog`. The wallet API is `EmbeddedWallet` from `@aztec/wallets/embedded`.
+All skills target **Aztec v4.2.0**. All `@aztec/*` packages are pinned at the same version via the root `package.json` `workspaces.catalog`. The wallet API is `EmbeddedWallet` from `@aztec/wallets/embedded`.
 
 ## Generated Project Shape
 
@@ -54,9 +54,9 @@ The skill now treats secret contracts and contract-owned shared private state as
 - Noir role checks still decide who may execute privileged escrow actions.
 - Offchain manifests carry secret contract instance data and optional key material between participants.
 - Escrow lifecycle phases are explicit private state: `CREATED`, `OPEN`, `VOID`, optional `ACCEPTED`, optional `SETTLEMENT_IN_PROGRESS`, and `FILLED`.
-- Private maker/taker/filler auth can use caller-owned `RoleSecretNote`s whose Poseidon pseudonyms are stored as config fields.
-- Immutable terms live in `ConfigNote`; mutable phase/timer data lives in optional `StateNote`.
-- Atomic one-shot onchain settlement usually skips `StateNote`, regardless of whether the delivery is token-to-token.
+- Private creator auth uses a `RoleSecretNote` whose Poseidon pseudonym is stored in config; taker/filler roles are added only when the design explicitly needs them.
+- Immutable terms live in `ConfigNote`; mutable phase/timer/cancellation data always lives in `StateNote`.
+- Atomic one-shot onchain settlement still uses `StateNote` so `VOID` and `FILLED` are durable terminal states.
 - Sensitive usernames, handles, and addresses are committed onchain and delivered offchain with the same care as key material.
 - Fresh projects should run a short design intake first; Plan mode is preferred when available.
 

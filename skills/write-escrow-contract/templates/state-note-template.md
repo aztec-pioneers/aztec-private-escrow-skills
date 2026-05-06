@@ -1,13 +1,18 @@
 # StateNote Template (Noir)
 
-Use a `StateNote` when the escrow has mutable lifecycle state: accepted taker, settlement windows, delayed delivery, or timeout recovery. Atomic one-shot onchain settlement flows usually do not need it, even when they are not token-to-token.
+Use a `StateNote` for escrow lifecycle state by default. Even atomic one-shot onchain settlement flows need it when the order can be voided, because `VOID` and `FILLED` must be durable terminal phases rather than implicit side effects of asset availability.
+
+All notes must include an `owner` field. For contract-owned shared notes such as `StateNote`, set `owner` to `self.address`.
 
 For a single escrow-wide state value, prefer `SinglePrivateMutable<StateNote, Context>` and initialize/replace notes owned by `self.address`. An owned `PrivateMutable` is also valid only if keyed to `self.address`; do not make escrow lifecycle state per participant.
 
 ```noir
 use aztec::{
     macros::notes::note,
-    protocol::traits::{Deserialize, Serialize, Packable},
+    protocol::{
+        address::AztecAddress,
+        traits::{Deserialize, Serialize, Packable},
+    },
 };
 
 global PHASE_CREATED: Field = 0;
@@ -20,25 +25,15 @@ global PHASE_FILLED: Field = 5;
 #[derive(Eq, Serialize, Deserialize, Packable)]
 #[note]
 pub struct StateNote {
+    pub owner: AztecAddress,
     pub phase: Field,
-    pub taker_pseudonym: Field,
-    pub filler_pseudonym: Field,
-    pub accepted_at: u64,
-    pub settlement_started_at: u64,
-    pub fill_deadline: u64,
-    pub settlement_deadline: u64,
 }
 
 impl StateNote {
-    pub fn created() -> Self {
+    pub fn created(owner: AztecAddress) -> Self {
         StateNote {
+            owner,
             phase: PHASE_CREATED,
-            taker_pseudonym: 0,
-            filler_pseudonym: 0,
-            accepted_at: 0,
-            settlement_started_at: 0,
-            fill_deadline: 0,
-            settlement_deadline: 0,
         }
     }
 
@@ -46,8 +41,28 @@ impl StateNote {
         assert(self.phase == expected, "invalid escrow phase");
         self
     }
+
+    pub fn transition(self, expected: Field, next: Field) -> Self {
+        let state = self.assert_phase(expected);
+        StateNote {
+            owner: state.owner,
+            phase: next,
+        }
+    }
 }
 ```
+
+For `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, timeout, or role-bound non-atomic flows, extend `StateNote` with the exact fields the design needs:
+
+```noir
+pub taker_pseudonym: Field,
+pub accepted_at: u64,
+pub settlement_started_at: u64,
+pub fill_deadline: u64,
+pub settlement_deadline: u64,
+```
+
+Do not add `filler_pseudonym` to atomic one-shot flows. Atomic fills are open to any filler that can satisfy the settlement terms; creator authority is the only default role.
 
 ## Storage
 
@@ -66,7 +81,7 @@ struct Storage<Context> {
 
 ```noir
 self.storage.state
-    .initialize(StateNote::created(), self.address)
+    .initialize(StateNote::created(self.address), self.address)
     .deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 ```
 
@@ -87,14 +102,15 @@ Read, validate, mutate, and reinsert through `replace`. Deliver contract-owned s
 ```noir
 let now = self.context.get_anchor_block_header().timestamp();
 
+// Example for an extended StateNote that includes taker/timer fields.
 self.storage.state
     .replace(
         |state| {
             let state = state.assert_phase(PHASE_OPEN);
             StateNote {
+                owner: state.owner,
                 phase: PHASE_ACCEPTED,
                 taker_pseudonym,
-                filler_pseudonym: state.filler_pseudonym,
                 accepted_at: now,
                 settlement_started_at: state.settlement_started_at,
                 fill_deadline: now + fill_window,

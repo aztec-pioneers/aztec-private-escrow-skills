@@ -14,16 +14,16 @@ The contract secret key is a read/nullify capability for contract-owned private 
 
 ## Role-Secret Pseudonym Pattern
 
-Prefer role pseudonyms when maker/taker/filler identity should not be stored as an address in shared config.
+Prefer role pseudonyms when creator/maker/taker/filler identity should not be stored as an address in shared config.
 
-1. Store a caller-owned `RoleSecretNote` in `Owned<PrivateImmutable<RoleSecretNote, Context>, Context>`.
+1. Store a single-role `RoleSecretNote` in `SinglePrivateImmutable<RoleSecretNote, Context>`.
 2. The note contains `owner: AztecAddress` and `randomness: Field`.
 3. `RoleSecretNote::new(owner)` uses `unsafe { random() }` for randomness.
 4. `RoleSecretNote::pseudonym()` returns `Poseidon2::hash([owner.to_field(), randomness], 2)`.
-5. Config stores expected role pseudonyms as `Field` values, such as `maker_pseudonym`, `taker_pseudonym`, or `filler_pseudonym`.
-6. A role-gated private entrypoint reads `self.storage.role_secrets.at(caller).get_note()` and asserts its pseudonym equals the configured role field.
+5. Config or state stores expected role pseudonyms as `Field` values, such as `creator_pseudonym`, `taker_pseudonym`, or `filler_pseudonym`.
+6. A role-gated private entrypoint reads the relevant `SinglePrivateImmutable<RoleSecretNote, Context>`, asserts `role_secret.owner == caller`, and asserts its pseudonym equals the configured role field.
 
-Use `PrivateImmutable`, not `SinglePrivateImmutable`, because role secrets are per-account notes owned by the caller. `SinglePrivateImmutable` is contract-wide and sets the note owner to the contract address.
+For atomic one-shot escrows, only create the creator role secret by default. Do not add a filler role unless the user explicitly requires a bound filler.
 
 ### Creation and delivery
 
@@ -32,10 +32,9 @@ Role-secret notes should be emitted to the caller, not to the escrow contract. T
 Use:
 
 ```noir
-self.storage.role_secrets
-    .at(caller)
+self.storage.creator_role_secret
     .initialize(RoleSecretNote::new(caller))
-    .deliver(MessageDelivery.ONCHAIN_UNCONSTRAINED);
+    .deliver_to(caller, MessageDelivery.ONCHAIN_UNCONSTRAINED);
 ```
 
 `ONCHAIN_UNCONSTRAINED` is appropriate here because the caller is sending the note to themselves and is incentivized to receive it. Do not use `OFFCHAIN` by default because the note should remain recoverable from onchain private logs.
@@ -44,10 +43,10 @@ Contract-owned shared config and lifecycle notes should still use `MessageDelive
 
 ## General Patterns
 
-1. Store role pseudonyms, addresses, or role commitments in the shared private config note depending on privacy requirements.
-2. In each private entrypoint, read the config and assert the caller or supplied proof matches the required role.
+1. Store role pseudonyms or role commitments in the shared private config/state note depending on privacy requirements. Do not store participant addresses for creator authorization unless the user explicitly chooses address-based auth.
+2. In each private entrypoint, read the config and assert the caller's role-secret pseudonym or supplied proof matches the required role.
 3. Use authwits for token movement from participant accounts into the escrow.
-4. Use lifecycle phase checks, deadlines, and asset availability for action gating. Do not add custom fill/deposit nullifiers in the default templates.
+4. Use `StateNote` lifecycle phase checks, deadlines, and asset availability for action gating. Do not add custom fill/deposit nullifiers in the default templates.
 5. If role membership must remain private, store commitments and require the caller to prove membership instead of exposing an address field.
 
 ## Guardrail

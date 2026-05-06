@@ -2,6 +2,8 @@
 
 Use contract-owned private state when escrow participants need a shared private view of terms or lifecycle state.
 
+Every note type must include an `owner: AztecAddress` field. For contract-owned shared notes (`ConfigNote`, `StateNote`) set this field to `self.address`. For role-secret notes set it to the role holder/creator address.
+
 ## Storage
 
 | Need | Pattern |
@@ -13,7 +15,7 @@ Use contract-owned private state when escrow participants need a shared private 
 
 ## Lifecycle State
 
-Represent mutable phases separately from immutable order terms when the escrow can advance beyond a one-shot fill.
+Represent mutable phases separately from immutable order terms. Use `StateNote` even for one-shot atomic fills so cancellation and terminal fill status are represented as private state instead of inferred from asset availability.
 
 Store at least:
 
@@ -22,9 +24,9 @@ Store at least:
 - Immutable timing windows copied from config or constructor args.
 - Terminal phase and deadline fields needed to prevent impossible transitions, such as filling after `VOID` or voiding during a live accepted window.
 
-Use `ConfigNote` for immutable terms and `StateNote` for mutable phase data. Atomic one-shot onchain settlement flows usually do not need `StateNote`; longer flows with accept, settlement-in-progress, or timeout recovery should use it.
+Use `ConfigNote` for immutable terms and `StateNote` for mutable phase data. Atomic one-shot onchain settlement flows use a small state graph (`CREATED`, `OPEN`, `VOID`, `FILLED`); longer flows with accept, settlement-in-progress, or timeout recovery extend the same state note.
 
-Do not add custom order-level nullifiers for default deposit/fill replay protection. Primitive token and note operations still create their own nullifiers. One-shot atomic fills are asset-gated and can replay only if the maker funds the escrow again; stateful flows should move to a terminal phase in `StateNote`.
+Do not add custom order-level nullifiers for default deposit/fill replay protection. Primitive token and note operations still create their own nullifiers. Use `StateNote` terminal phases to prevent filling after `VOID` or after `FILLED`.
 
 ## Mutable Reads
 

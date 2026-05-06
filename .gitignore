@@ -1,1 +1,3 @@
 .claude
+codegenCache.json
+**/codegenCache.json

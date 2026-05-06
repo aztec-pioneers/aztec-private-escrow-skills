@@ -16,9 +16,9 @@ For fresh projects or lifecycle changes, load `design-intake.md` and confirm pha
 
 ## Lifecycle Selection
 
-Load `lifecycle-phases.md` when the escrow is not a one-shot atomic swap. Use the smallest phase graph that protects both sides:
+Load `lifecycle-phases.md` for every escrow shape, including one-shot atomic swaps. Use the smallest phase graph that protects both sides:
 
-- Atomic token swaps usually need `CREATED`, `OPEN`, `FILLED`, and optionally `VOID`.
+- Atomic token swaps usually need `CREATED`, `OPEN`, `VOID`, and `FILLED`.
 - Offchain payment or proof-generation flows usually add `ACCEPTED`.
 - Cancellable or delayed delivery flows usually add `SETTLEMENT_IN_PROGRESS`.
 

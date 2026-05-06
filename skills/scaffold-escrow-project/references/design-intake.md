@@ -9,6 +9,7 @@ Ask the intake questions when:
 - the target project is not initialized yet;
 - the user asks for a new escrow shape;
 - phases, time windows, config fields, state fields, or settlement proofs are ambiguous;
+- the `OrderFilled` event payload is ambiguous;
 - adding `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, offchain delivery, zkTLS, zkEmail, Venmo-like payment, Amazon-like delivery, or timeout recovery.
 
 Do not ask again when:
@@ -75,18 +76,36 @@ If there is any ambiguity, ask the user to confirm the field split before writin
 
 Default split:
 
-- `ConfigNote`: immutable maker pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms.
-- `StateNote`: phase, bound taker/filler pseudonym, accepted timestamp, settlement-start timestamp, fill deadline, settlement deadline, recovery metadata.
+- `ConfigNote`: owner set to `self.address`, immutable creator pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms.
+- `StateNote`: owner set to `self.address`, phase, and only the bound taker/filler pseudonyms, timestamps, deadlines, or recovery metadata required by the selected phases.
 
 Default role-secret bootstrap:
 
-- Maker role secret is created during constructor/deploy flow and its pseudonym is stored in `ConfigNote`.
-- Taker/filler role secret is created and bound when entering `ACCEPTED`, or during `FILLED` for atomic one-shot flows with no accept step.
+- Creator role secret is created during constructor/deploy flow, delivered to the creator, and its pseudonym is stored in `ConfigNote`.
+- Atomic one-shot flows do not add taker/filler role secrets by default.
+- Taker/filler role secrets are created and bound only when `ACCEPTED`, delayed settlement, or another explicit role-restricted phase requires them.
 
 Ask compactly:
 
 ```text
-I’ll put immutable terms in ConfigNote and phase/taker/timer fields in StateNote. Ambiguous fields: [list]. Confirm where they belong or tell me to infer.
+I’ll put immutable terms and creator pseudonym in ConfigNote, with owner=self.address, and phase fields in StateNote, also owner=self.address. Ambiguous fields: [list]. Confirm where they belong or tell me to infer.
 ```
 
 Sensitive plaintexts such as usernames, account handles, addresses, locker codes, and emails should not go into onchain note messages. Store salted commitments and deliver plaintexts offchain with key material.
+
+## OrderFilled Payload
+
+Always decide the `OrderFilled` payload during intake. Default to no payload when the fill action settles atomically and the event is only a receipt.
+
+Ask compactly when settlement may need event-carried data:
+
+```text
+OrderFilled can be a no-payload receipt. Does settlement require the event to carry any data, such as a delivery/proof commitment or scalar handoff payload? Reply "none" or list the exact fields.
+```
+
+Rules:
+
+- Do not add placeholder fields for future flexibility.
+- Do not include random values, zero-filled delivery slots, partial-note commitments, filler pseudonyms, or token-settlement metadata unless the user explicitly chooses those fields.
+- For atomic token settlement, use a no-payload `OrderFilled` unless the user states a specific payload requirement.
+- For sensitive recoverable terms, prefer salted commitments in config/state and offchain plaintext handoff.

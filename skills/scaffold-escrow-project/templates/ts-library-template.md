@@ -1,12 +1,12 @@
 # TypeScript Library Templates
 
-These templates target Aztec `4.2.0-aztecnr-rc.2`. The wallet API is `EmbeddedWallet` from `@aztec/wallets/embedded`. Cross-contract reads use `additionalScopes` in send opts.
+These templates target Aztec `4.2.0`. The wallet API is `EmbeddedWallet` from `@aztec/wallets/embedded`. Cross-contract reads use `additionalScopes` in send opts.
 
 ## packages/contracts/ts/src/artifacts/index.ts
 
 ```typescript
-export { TokenContract, TokenContractArtifact } from "./token/Token";
-export { OTCEscrowContract, OTCEscrowContractArtifact } from "./escrow/OTCEscrow";
+export { TokenContract, TokenContractArtifact } from "./token/Token.js";
+export { OTCEscrowContract, OTCEscrowContractArtifact } from "./escrow/OTCEscrow.js";
 ```
 
 ## packages/contracts/ts/src/constants.ts
@@ -21,7 +21,8 @@ export const TOKEN_METADATA = {
 
 export type EscrowConfig = {
     owner: AztecAddress,
-    partial_node: bigint,
+    creator_pseudonym: bigint,
+    partial_note: bigint,
     sell_token_address: AztecAddress,
     sell_token_amount: bigint,
     buy_token_address: AztecAddress,
@@ -35,9 +36,8 @@ export type EscrowConfig = {
 ```typescript
 import type { AztecNode } from "@aztec/aztec.js/node";
 
-export const wad = (n: bigint = 1n, decimals: bigint = 18n) =>
+export const precision = (n: bigint = 1n, decimals: bigint = 18n) =>
     n * 10n ** decimals;
-export const precision = wad;
 
 export const isTestnet = async (node: AztecNode): Promise<boolean> => {
     const chainId = await node.getNodeInfo().then(info => info.l1ChainId);
@@ -69,7 +69,7 @@ export async function getPriorityFeeOptions(
     node: AztecNode, feeMultiplier: bigint
 ): Promise<InteractionFeeOptions> {
     const maxFeesPerGas = (await node.getCurrentMinFees()).mul(feeMultiplier);
-    return { gasSettings: GasSettings.default({ maxFeesPerGas }) };
+    return { gasSettings: GasSettings.fallback({ maxFeesPerGas }) };
 }
 ```
 
@@ -81,7 +81,8 @@ Patterns:
 - **`additionalScopes` is required** when an account needs to read another contract's notes inside a private function. Deploying an escrow that immediately writes a note about itself, depositing into the escrow, and filling it all need the escrow address scoped in.
 - **Token APIs are adapter-specific:** helper names should describe escrow capabilities. The concrete token method names below are only valid if they match the selected token binding.
 - **Fill receipts:** `fill_order` emits an escrow-addressed `OrderFilled` private event with constrained onchain delivery. The SDK can return the tx hash and leave event decoding to the consuming app/test harness.
-- **No custom order-level fill/deposit nullifiers:** one-shot fills are asset-gated and can replay if the maker funds the escrow again. Document this in generated app/test code instead of adding a default replay guard.
+- **No custom order-level fill/deposit nullifiers:** use `StateNote` terminal phase checks for cancellation/fill status instead of adding a default replay guard.
+- **Send/deploy options:** default SDK helper params as `opts: { send?: SendOpts } = { send: { from } }` (or `DeployOpts` for deployment helpers), then merge into local `sendOpts`/`deployOpts`. Do not default to `{}` because that silently loses the sender and required `additionalScopes`.
 
 ```typescript
 import { AztecAddress } from "@aztec/aztec.js/addresses";
@@ -103,9 +104,12 @@ import {
     OTCEscrowContractArtifact,
     TokenContract,
     TokenContractArtifact
-} from "./artifacts";
-import { type EscrowConfig } from "./constants";
-import { createEscrowManifest, type EscrowManifest } from "./manifest";
+} from "./artifacts/index.js";
+import { type EscrowConfig } from "./constants.js";
+import { createEscrowManifest, type EscrowManifest } from "./manifest.js";
+
+type DeployOpts = DeployOptions;
+type SendOpts = SendInteractionOptions<InteractionWaitOptions>;
 
 export async function deployEscrowContract(
     wallet: Wallet,
@@ -114,7 +118,7 @@ export async function deployEscrowContract(
     sellTokenAmount: bigint,
     buyTokenAddress: AztecAddress,
     buyTokenAmount: bigint,
-    opts: { send: DeployOptions } = { send: { from } }
+    opts: { send?: DeployOpts } = { send: { from } }
 ): Promise<{
     contract: OTCEscrowContract,
     instance: ContractInstanceWithAddress,
@@ -132,7 +136,7 @@ export async function deployEscrowContract(
         from,
         skipClassPublication: true,
         skipInstancePublication: true,
-        ...opts.send,
+        ...(opts.send ?? {}),
     };
     const instance = await contractDeployment.getInstance(deployOpts);
     await wallet.registerContract(instance, OTCEscrowContractArtifact, contractSecretKey);
@@ -155,47 +159,58 @@ export async function deployTokenContract(
     wallet: Wallet,
     from: AztecAddress,
     tokenMetadata: { name: string; symbol: string; decimals: number },
-    opts: { send: SendInteractionOptions<InteractionWaitOptions> } = { send: { from } }
+    opts: { send?: SendOpts } = { send: { from } }
 ): Promise<{ contract: TokenContract, instance: ContractInstanceWithAddress }> {
     const contractDeployment = await TokenContract.deployWithOpts(
         { wallet, method: "constructor_with_minter" },
         tokenMetadata.name, tokenMetadata.symbol, tokenMetadata.decimals,
         from,
     );
+    const sendOpts = { from, ...(opts.send ?? {}) };
     const instance = await contractDeployment.getInstance();
-    const { contract } = await contractDeployment.send(opts.send);
+    const { contract } = await contractDeployment.send(sendOpts);
     return { contract, instance };
 }
 
 export async function depositToEscrow(
     wallet: Wallet, from: AztecAddress,
     escrow: OTCEscrowContract, token: TokenContract, amount: bigint,
-    opts: { send: SendInteractionOptions<InteractionWaitOptions> }
+    opts: { send?: SendOpts }
         = { send: { from, additionalScopes: [escrow.address] } }
 ): Promise<TxHash> {
     escrow = escrow.withWallet(wallet);
+    const sendOpts = {
+        from,
+        ...(opts.send ?? {}),
+        additionalScopes: [escrow.address, ...(opts.send?.additionalScopes ?? [])],
+    };
     const { nonce, authwit } = await getPrivateTransferAuthwit(
         wallet, from, token, escrow.address, escrow.address, amount,
     );
     const { receipt } = await escrow.methods.deposit_tokens(nonce)
         .with({ authWitnesses: [authwit] })
-        .send(opts.send);
+        .send(sendOpts);
     return receipt.txHash;
 }
 
 export async function fillOTCOrder(
     wallet: Wallet, from: AztecAddress,
     escrow: OTCEscrowContract, token: TokenContract, amount: bigint,
-    opts: { send: SendInteractionOptions<InteractionWaitOptions> }
+    opts: { send?: SendOpts }
         = { send: { from, additionalScopes: [escrow.address] } }
 ): Promise<TxHash> {
     escrow = escrow.withWallet(wallet);
+    const sendOpts = {
+        from,
+        ...(opts.send ?? {}),
+        additionalScopes: [escrow.address, ...(opts.send?.additionalScopes ?? [])],
+    };
     const { nonce, authwit } = await getPrivateTransferAuthwit(
         wallet, from, token, escrow.address, escrow.address, amount,
     );
     const { receipt } = await escrow.methods.fill_order(nonce)
         .with({ authWitnesses: [authwit] })
-        .send(opts.send);
+        .send(sendOpts);
     return receipt.txHash;
 }
 
@@ -262,7 +277,7 @@ import {
 import {
     OTCEscrowContract,
     OTCEscrowContractArtifact,
-} from "./artifacts";
+} from "./artifacts/index.js";
 
 export type EscrowManifest = {
     version: 1;
@@ -324,7 +339,7 @@ export function createEscrowManifest(args: {
     return {
         version: 1,
         kind: args.kind ?? "otc-atomic-swap",
-        aztecVersion: "4.2.0-aztecnr-rc.2",
+        aztecVersion: "4.2.0",
         deployment: {
             address: args.instance.address.toString(),
             contractInstance: JSON.parse(JSON.stringify(args.instance)),
@@ -395,6 +410,6 @@ export {
     registerEscrowFromManifest,
     type EscrowManifest,
 } from "./manifest.js";
-export { wad, isTestnet } from "./utils.js";
+export { precision, isTestnet } from "./utils.js";
 export { getPriorityFeeOptions, getSponsoredPaymentMethod } from "./fees.js";
 ```

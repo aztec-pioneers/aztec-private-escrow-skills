@@ -10,7 +10,7 @@ Compile the Aztec Noir smart contracts and generate TypeScript bindings.
 
 ## Prerequisites
 
-- Aztec CLI v4.2.0-aztecnr-rc.2 (`aztec` in PATH)
+- Aztec CLI v4.2.0 (`aztec` in PATH)
 - Bun runtime installed
 
 Commands assume the generated project is `aztec-otc-desk` under the current directory. Set `PROJECT_DIR` for a custom name, or use `PROJECT_DIR=.` when already inside the generated project.
@@ -21,7 +21,7 @@ Two artifacts: the **token** (built once on `bun install`) and the **escrow** (b
 
 | Artifact | Trigger | What runs | Where it lands |
 |---|---|---|---|
-| Token | `bun install` (root `postinstall`) | `scripts/token.ts` | `packages/contracts/ts/src/artifacts/token/{Token.json,Token.ts}` (and `packages/contracts/target/otc_escrow-Token.json` for TXE) |
+| Token | `bun install` (root `postinstall`) | `scripts/token.ts` | `packages/contracts/ts/src/artifacts/token/{Token.json,Token.ts}` |
 | Escrow | `cd packages/contracts && bun run build` | `aztec compile && aztec codegen && bun run scripts/add_artifacts.ts` | `packages/contracts/ts/src/artifacts/escrow/{OTCEscrow.json,OTCEscrow.ts}` |
 
 You almost never need to invoke the token build manually. If you do (e.g., the submodule was just updated), run:
@@ -59,15 +59,13 @@ packages/contracts/
   package.json           # build/compile/codegen/copy-artifacts scripts
   scripts/
     add_artifacts.ts     # post-codegen artifact copy + import path fix
+  tsconfig.json          # TypeScript NodeNext config
   src/
     main.nr              # OTCEscrow contract
     types/
       config_note.nr     # ConfigNote (escrow parameters)
-      state_note.nr      # optional mutable lifecycle phase/timer state
+      state_note.nr      # required mutable lifecycle phase/timer/cancellation state
       role_secret_note.nr # caller-owned role-secret pseudonym note
-    test/
-      escrow.nr          # TXE test suite
-      utils/             # Test helpers
   ts/src/                # TypeScript library
     artifacts/           # Compiled artifacts + TS bindings
       index.ts           # Re-exports TokenContract + OTCEscrowContract
@@ -81,7 +79,7 @@ packages/contracts/
     constants.ts         # Token metadata, EscrowConfig type
     manifest.ts          # Secret escrow instance manifest helpers
     fees.ts              # Fee payment helpers (SponsoredFPC, priority fees)
-    utils.ts             # Utilities (wad, isTestnet)
+    utils.ts             # Utilities (precision, isTestnet)
 ```
 
 ## Noir API Reference
@@ -90,21 +88,18 @@ packages/contracts/
 use aztec::protocol::address::AztecAddress;
 use aztec::protocol::traits::{Serialize, Deserialize, Packable};
 use aztec::oracle::random::random;
-use aztec::state_vars::{Owned, PrivateImmutable, SinglePrivateImmutable, SinglePrivateMutable};
+use aztec::state_vars::{SinglePrivateImmutable, SinglePrivateMutable};
 use aztec::messages::message_delivery::MessageDelivery;
 use aztec::macros::{aztec, notes::note, functions::{initializer, external}, storage::storage};
-use aztec::test::helpers::{test_environment::TestEnvironment, authwit, txe_oracles};
 ```
 
 - `self.msg_sender()` returns `AztecAddress` directly
 - `MessageDelivery.ONCHAIN_CONSTRAINED` for guaranteed delivery of contract-owned shared notes
-- `MessageDelivery.ONCHAIN_UNCONSTRAINED` for caller-owned role-secret notes delivered to the caller themselves
+- `MessageDelivery.ONCHAIN_UNCONSTRAINED` for role-secret notes delivered to the caller themselves
 - `self.context.get_anchor_block_header().timestamp()` for private phase deadline checks
 - `unsafe` blocks in unconstrained functions are unnecessary
 - `unsafe` in constrained code needs `// Safety:` comments
 
-## Running Noir Tests (TXE)
+## Testing Scope
 
-```bash
-cd packages/contracts && aztec test
-```
+Generated projects should use TypeScript/Bun tests around the SDK, deployment, authwit flow, private token operations, and contract interactions. Do not add contract-package test scripts to `package.json`; the build skill only compiles contracts and generates TS bindings.
