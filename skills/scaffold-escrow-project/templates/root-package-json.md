@@ -11,6 +11,7 @@ Copy these files into the target project before applying requested package names
 - `templates/project/packages/contracts/tsconfig.json`
 - `templates/project/packages/contracts/Nargo.toml`
 - `templates/project/packages/contracts/scripts/add_artifacts.ts`
+- `templates/project/packages/contracts/ts/test/setup.ts`
 
 Keep generated TypeScript sources in `templates/project/packages/contracts/ts/src/`.
 This index exists so older references to `root-package-json.md` still lead agents to the canonical template files.

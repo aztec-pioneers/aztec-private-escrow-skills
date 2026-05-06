@@ -80,7 +80,6 @@ aztec-otc-desk/
 │   │   │   └── types/
 │   │   │       ├── config_note.nr
 │   │   │       ├── state_note.nr
-│   │   │       └── role_secret_note.nr
 │   │   └── ts/
 │   │       ├── src/
 │   │           ├── index.ts
@@ -98,6 +97,7 @@ aztec-otc-desk/
 │   │                   ├── Token.ts
 │   │                   └── Token.json
 │   │       └── test/
+│   │           ├── setup.ts      # Bun preload shim for Aztec/Jest expect hook
 │   │           └── escrow.test.ts # monolithic Bun localnet test harness
 ```
 
@@ -109,7 +109,7 @@ Use the templates in this skill directory:
 - `../write-escrow-contract/templates/contract-template.md` - Noir contract source
 - `../write-escrow-contract/templates/config-note-template.md` - ConfigNote
 - `../write-escrow-contract/templates/state-note-template.md` - required mutable StateNote for phase, cancellation, terminal-state, and timer flows
-- `../write-escrow-contract/templates/role-secret-note-template.md` - caller-owned RoleSecretNote for private role authentication
+- `../write-escrow-contract/templates/role-secret-template.md` - caller-sampled role secrets, RoleAdded recovery events, and private role authentication
 - `../write-escrow-contract/templates/order-filled-event-template.md` - required private fill receipt event
 - `templates/ts-library-template.md` - index for TypeScript SDK files (uses `EmbeddedWallet`, subpath imports, `additionalScopes`)
 
@@ -147,7 +147,7 @@ bun run localnet
 
 Do not scaffold an API, CLI, orderflow service, or runnable demo flow for now. Expose deployment, registration, authwit, manifest, and contract interaction helpers from the TypeScript SDK so an app or test harness can be added later.
 
-Testing for generated escrow projects should be TypeScript/Bun-based around the SDK and private interaction flow. Add a single monolithic `packages/contracts/ts/test/escrow.test.ts` by default. Keep `package.json` free of Aztec.nr/TXE test scripts.
+Testing for generated escrow projects should be TypeScript/Bun-based around the SDK and private interaction flow. Add a single monolithic `packages/contracts/ts/test/escrow.test.ts` by default plus `packages/contracts/ts/test/setup.ts` for the Bun preload shim. Keep `package.json` free of Aztec.nr/TXE test scripts. The contracts package `test` script must target only `./ts/test/escrow.test.ts` with `--preload ./ts/test/setup.ts`; do not let Bun recursively discover `deps/aztec-standards` tests and do not make a script that recursively invokes itself.
 
 ## Non-Negotiables
 
@@ -156,5 +156,5 @@ Keep the full details in the referenced files and templates. For scaffold runs, 
 1. **Version + TS shape**: Target Aztec `4.2.0`, Bun, `EmbeddedWallet`, workspace catalog pinning, package imports such as `@aztec-otc-desk/contracts`, subpath `@aztec/*` imports, and NodeNext `.js` suffixes for handwritten relative TS imports.
 2. **Secret contract handoff**: Private-only escrow contracts need an offchain manifest class. Include only address, serialized `ContractInstanceWithAddress`, contract secret key, creation block, and tx hash; encrypt the whole manifest for transport when sending it to another participant.
 3. **Shared private state**: `ConfigNote` and `StateNote` are contract-owned private notes. Pass `additionalScopes` on deploy/deposit/fill calls that read or nullify escrow-owned notes.
-4. **Roles + lifecycle**: Use role-secret pseudonyms for private role checks, `StateNote` for all phase/cancel/fill state, and no custom fill/deposit nullifiers by default.
+4. **Roles + lifecycle**: Use caller-sampled role secrets and caller-bound pseudonyms for private role checks, `StateNote` for all phase/cancel/fill state, and no custom fill/deposit nullifiers by default.
 5. **Output scope**: Generate contracts plus the TypeScript SDK and TypeScript/Bun tests only. Do not scaffold API, CLI, demo app, or Aztec.nr/TXE test scripts.

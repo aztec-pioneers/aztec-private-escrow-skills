@@ -37,9 +37,9 @@ lifecycle state contract-owned and private, and keep token APIs adapter-specific
 
 ```text
 Add private role-secret authentication to the Aztec escrow contract. Store
-caller-owned RoleSecretNote values in Owned<PrivateImmutable>, store maker/taker
-pseudonyms as Field values in config, and check the caller's pseudonym in each
-role-gated private entrypoint.
+only caller-bound Poseidon pseudonyms in config/state, emit RoleAdded recovery
+events to each caller, and require the caller to pass their role secret into
+each role-gated private entrypoint.
 ```
 
 ## Config + State Split

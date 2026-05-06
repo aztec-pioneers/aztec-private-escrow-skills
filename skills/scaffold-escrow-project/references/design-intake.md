@@ -81,7 +81,8 @@ Default split:
 
 Default role-secret bootstrap:
 
-- A per-caller role secret is created under `role_secret.at(caller)`, delivered to that caller, and its pseudonym is stored in `ConfigNote` or `StateNote`.
+- The caller samples a random role secret off-contract, passes it to the role-creating call, and the contract stores only `Poseidon2([caller, secret])` in `ConfigNote` or `StateNote`.
+- The contract emits `RoleAdded { secret }` to the caller for recovery. This event is not escrow-addressed and does not go into the manifest.
 - Atomic one-shot flows bind only the creator pseudonym by default.
 - For open orders, do not ask for a designated taker by default. Any caller may accept or fill if they satisfy the settlement terms.
 - When an `ACCEPTED` phase is present, acceptance binds the accepting caller's role-secret pseudonym into `StateNote`, just as construction binds the creator pseudonym into `ConfigNote`.

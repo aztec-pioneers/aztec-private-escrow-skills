@@ -65,7 +65,6 @@ packages/contracts/
     types/
       config_note.nr     # ConfigNote (escrow parameters)
       state_note.nr      # required mutable lifecycle phase/timer/cancellation state
-      role_secret_note.nr # caller-owned role-secret pseudonym note
   ts/src/                # TypeScript library
     artifacts/           # Compiled artifacts + TS bindings
       index.ts           # Re-exports TokenContract + OTCEscrowContract
@@ -89,3 +88,11 @@ This skill is only for compile/codegen wiring. If a build failure requires Noir,
 ## Testing Scope
 
 Generated projects should use TypeScript/Bun tests around the SDK, deployment, authwit flow, private token operations, and contract interactions. Keep Aztec.nr/TXE test scripts out of `package.json`; this build skill only compiles contracts and generates TS bindings.
+
+The contracts package test script should be targeted and non-recursive:
+
+```json
+"test": "bun test --preload ./ts/test/setup.ts --timeout 300000 ./ts/test/escrow.test.ts"
+```
+
+The preload shim provides `expect.addEqualityTesters` for Aztec JS packages, and the explicit test file prevents Bun from discovering `deps/aztec-standards` tests. Localnet tests take minutes; run targeted `bun test ... -t "<name>"` while iterating, then one full `bun run test`.

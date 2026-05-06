@@ -22,7 +22,7 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 - Do not move maker funds in the constructor unless the user explicitly has a working authwit pattern for deploy-time transfer. Treat `CREATED` as config initialization and `OPEN` as the deposit transaction.
 - For atomic one-shot onchain settlement, use `CREATED -> OPEN -> FILLED` with `VOID` before fill. This is usually token-to-token, but can be any delivery that settles fully in one onchain fill action.
 - Add `ACCEPTED` when filling requires offchain action or proof generation and the taker needs protection from maker cancellation.
-- `ACCEPTED` is runtime caller binding, not a default allowlist. Unless the user explicitly wants a pre-authorized counterparty, any caller may accept by creating or presenting their own role secret and writing its pseudonym into `StateNote`.
+- `ACCEPTED` is runtime caller binding, not a default allowlist. Unless the user explicitly wants a pre-authorized counterparty, any caller may accept by sampling or presenting their own role secret and writing its caller-bound pseudonym into `StateNote`.
 - Add `SETTLEMENT_IN_PROGRESS` when proof of initiation is not proof of final delivery, such as cancellable ecommerce orders or locker-style deliveries that still need a recipient handoff.
 - Default `ACCEPTED` fill window to 1 hour unless the user specifies otherwise.
 - Default `SETTLEMENT_IN_PROGRESS` settlement window to 7 days unless the user specifies otherwise.
@@ -33,7 +33,7 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 2. Stateful phase transitions should consume or replace the prior phase/state note. Do not add custom transition nullifiers in the default templates.
 3. `VOID` after `ACCEPTED` or `SETTLEMENT_IN_PROGRESS` must be an explicit timeout/recovery rule, not an implicit maker escape hatch.
 4. Time windows such as accept, fill, settlement, or recovery windows should be immutable contract configuration once deployed.
-5. Role/auth rules belong in Noir entrypoints. Contract secret key possession may let someone read shared state, but it is not itself maker/taker authority. Store creator pseudonyms in config when known at construction; store taker/filler pseudonyms in state only when a runtime transition such as `ACCEPTED` binds the caller.
+5. Role/auth rules belong in Noir entrypoints. Contract secret key possession may let someone read shared state, but it is not itself maker/taker authority. Store creator pseudonyms in config when known at construction; store taker/filler pseudonyms in state only when a runtime transition such as `ACCEPTED` binds the caller. Later role-gated calls pass the same role secret and recompute the caller-bound pseudonym inline.
 6. Token method names are token-standard-specific. The lifecycle should name capabilities like deposit, refund, payout, and commitment completion instead of hard-coding one token contract API.
 7. Mutable phase reads must recreate and deliver the `StateNote`, even if the function only checked the current phase.
 8. Use the anchor block timestamp for deadline checks.

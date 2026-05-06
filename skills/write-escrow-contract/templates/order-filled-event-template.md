@@ -6,6 +6,8 @@ Do not use this event as a replay guard. Use `StateNote` terminal phase checks, 
 
 Default to a no-payload receipt. Add fields only when the design intake explicitly confirms that settlement requires data to be delivered or committed in the fill event. Atomic token settlement should normally use the no-payload form.
 
+The TypeScript SDK should expose a `getOrderFilledEvent` helper that calls `wallet.getPrivateEvents` with `contractAddress: escrow.address`, `scopes: [escrow.address]`, `fromBlock` set from the manifest's creation block, and `toBlock` set to the current block plus one. The wallet must already have registered the escrow instance with the escrow secret key. Do not use send/simulate `from` or `additionalScopes` for event scanning.
+
 ```noir
 use aztec::{
     macros::events::event,
@@ -34,3 +36,5 @@ struct OrderFilled {
 ```
 
 For recoverable secrets such as usernames, addresses, account handles, or locker codes, prefer delivering plaintext offchain and putting a salted commitment in the event unless the user explicitly chooses event delivery.
+
+When `OrderFilled` has payload fields, update the TypeScript event type and happy-path assertions to parse/check the decoded `event` payload. For the no-payload atomic form, only assert that the event exists and inspect metadata if useful.

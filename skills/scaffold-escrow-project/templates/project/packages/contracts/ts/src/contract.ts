@@ -9,7 +9,8 @@ import type {
 import { Fr } from "@aztec/aztec.js/fields";
 import type { AztecNode } from "@aztec/aztec.js/node";
 import { TxHash } from "@aztec/aztec.js/tx";
-import type { Wallet } from "@aztec/aztec.js/wallet";
+import type { PrivateEvent, Wallet } from "@aztec/aztec.js/wallet";
+import { BlockNumber } from "@aztec/foundation/branded-types";
 import { AuthWitness } from "@aztec/stdlib/auth-witness";
 import { deriveKeys } from "@aztec/stdlib/keys";
 import {
@@ -23,6 +24,8 @@ import { EscrowManifest } from "./manifest.js";
 
 type DeployOpts = DeployOptions;
 type SendOpts = SendInteractionOptions<InteractionWaitOptions>;
+export type OrderFilledEvent = Record<string, never>;
+export type RoleAddedEvent = { secret: bigint };
 
 export async function deployEscrowContract(
     wallet: Wallet,
@@ -31,19 +34,22 @@ export async function deployEscrowContract(
     sellTokenAmount: bigint,
     buyTokenAddress: AztecAddress,
     buyTokenAmount: bigint,
-    opts: { send?: DeployOpts } = { send: { from } }
+    opts: { send?: DeployOpts, creatorRoleSecret?: Fr } = { send: { from } }
 ): Promise<{
     contract: OTCEscrowContract,
     instance: ContractInstanceWithAddress,
     contractSecretKey: Fr,
+    creatorRoleSecret: Fr,
     manifest: EscrowManifest,
 }> {
+    const creatorRoleSecret = opts.creatorRoleSecret ?? Fr.random();
     const contractSecretKey = Fr.random();
     const contractPublicKeys = (await deriveKeys(contractSecretKey)).publicKeys;
     const contractDeployment = await OTCEscrowContract.deployWithPublicKeys(
         contractPublicKeys, wallet,
         sellTokenAddress, sellTokenAmount,
         buyTokenAddress, buyTokenAmount,
+        creatorRoleSecret,
     );
     const deployOpts = {
         from,
@@ -65,7 +71,7 @@ export async function deployEscrowContract(
         contractSecretKey,
         txHash: receipt.txHash.toString(),
     });
-    return { contract, instance, contractSecretKey, manifest };
+    return { contract, instance, contractSecretKey, creatorRoleSecret, manifest };
 }
 
 export async function deployTokenContract(
@@ -88,6 +94,7 @@ export async function deployTokenContract(
 export async function depositToEscrow(
     wallet: Wallet, from: AztecAddress,
     escrow: OTCEscrowContract, token: TokenContract, amount: bigint,
+    creatorRoleSecret: Fr,
     opts: { send?: SendOpts }
         = { send: { from, additionalScopes: [escrow.address] } }
 ): Promise<TxHash> {
@@ -100,7 +107,7 @@ export async function depositToEscrow(
     const { nonce, authwit } = await getPrivateTransferAuthwit(
         wallet, from, token, escrow.address, escrow.address, amount,
     );
-    const { receipt } = await escrow.methods.deposit_tokens(nonce)
+    const { receipt } = await escrow.methods.deposit_tokens(nonce, creatorRoleSecret)
         .with({ authWitnesses: [authwit] })
         .send(sendOpts);
     return receipt.txHash;
@@ -145,6 +152,49 @@ export async function getEscrowConfig(
     const { result } = await escrow.withWallet(wallet)
         .methods.get_config().simulate({ from: escrow.address });
     return result;
+}
+
+export async function getOrderFilledEvent(
+    wallet: Wallet,
+    node: AztecNode,
+    escrow: OTCEscrowContract,
+    createdBlockNumber: number,
+): Promise<PrivateEvent<OrderFilledEvent> | undefined> {
+    const currentBlockNumber = await node.getBlockNumber();
+    const events = await wallet.getPrivateEvents<OrderFilledEvent>(
+        OTCEscrowContract.events.OrderFilled,
+        {
+            contractAddress: escrow.address,
+            fromBlock: BlockNumber(createdBlockNumber),
+            toBlock: BlockNumber(currentBlockNumber + 1),
+            scopes: [escrow.address],
+        },
+    );
+    return events[0];
+}
+
+export async function retrieveRoleSecret(
+    wallet: Wallet,
+    node: AztecNode,
+    escrow: OTCEscrowContract,
+    recipient: AztecAddress,
+    fromBlock: number,
+): Promise<bigint> {
+    const currentBlockNumber = await node.getBlockNumber();
+    const events = await wallet.getPrivateEvents<RoleAddedEvent>(
+        OTCEscrowContract.events.RoleAdded,
+        {
+            contractAddress: escrow.address,
+            fromBlock: BlockNumber(fromBlock),
+            toBlock: BlockNumber(currentBlockNumber + 1),
+            scopes: [recipient],
+        },
+    );
+    const event = events[0];
+    if (!event) {
+        throw new Error(`RoleAdded event not found for ${recipient.toString()}`);
+    }
+    return event.event.secret;
 }
 
 export async function expectBalancePrivate(
