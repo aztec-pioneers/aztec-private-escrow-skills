@@ -1,80 +1,53 @@
-# Escrow Instance Manifest
+# Escrow Manifest
 
-Use an escrow manifest for participant handoff. It is an offchain descriptor, not onchain state.
+Use an escrow manifest as the offchain handoff object for a secret escrow contract. It is not contract state and should not mirror the role graph, phase graph, config note, or sensitive order terms.
 
-Separate instance knowledge from private-state access. A manifest may let a participant instantiate/register the contract without letting them read shared private notes.
+The manifest has one job: carry the data another participant needs to register the escrow wrapper and read contract-owned private notes.
 
 ## Shape
 
 ```typescript
-export type EscrowManifest = {
-    version: 1;
-    kind: string;
-    aztecVersion: string;
-    createdAt?: string;
-
-    deployment: {
-        address: string;
-        contractInstance: string;
-        artifactName: string;
-        artifactHash?: string;
-        constructorArgs: unknown[];
-        salt?: string;
-        deployer?: string;
-        publicKeys?: unknown;
-        skipClassPublication?: boolean;
-        skipInstancePublication?: boolean;
-        txHash?: string;
-    };
-
-    access?: {
-        contractSecretKey?: string;
-        encryptedContractSecretKey?: string;
-        encryptionScheme?: string;
-        visibleCapabilities: Array<"instantiate" | "read-shared-private-state" | "execute-private-calls">;
-    };
-
-    roles?: Array<{
-        name: string;
-        address?: string;
-        pseudonym?: string;
-        commitment?: string;
-        capabilities: string[];
-    }>;
-
-    lifecycle?: {
-        phases: string[];
-        initialPhase: string;
-        terminalPhases: string[];
-        immutableWindows?: Record<string, string>;
-    };
-
-    sensitiveTerms?: Array<{
-        key: string;
-        commitment: string;
-        encryptedPlaintext?: string;
-        encryptionScheme?: string;
-    }>;
-
-    metadata?: Record<string, unknown>;
+export type EscrowManifestData = {
+    address: string;
+    contractInstance: unknown; // serialized ContractInstanceWithAddress
+    contractSecretKey: string;
+    createdBlockNumber: number; // start event scans here
+    txHash?: string;
 };
 ```
 
-## Semantics
+Do not add default `kind`, Aztec/package version, artifact name/hash, salt, deployer, skip-publication flags, roles, lifecycle, or sensitive-term fields. The SDK already imports the escrow artifact locally, and `wallet.registerContract(instance, OTCEscrowContractArtifact, secretKey)` only needs the serialized instance and key.
 
-- `deployment.contractInstance` should be the serialized `ContractInstanceWithAddress`.
-- `access.contractSecretKey` is sensitive. If present, the recipient can register the contract with the key and read contract-owned private notes.
-- If `access` is omitted or lacks key material, the manifest only provides instance/artifact/init knowledge.
-- `roles` document expected business authority. Prefer `pseudonym` for role-secret based auth when the participant address should not be exposed in config. The Noir contract must still enforce those roles.
-- `lifecycle` may document the intended phase graph and immutable timing windows for handoff UX. The contract's private state remains the source of truth.
-- `sensitiveTerms` should contain commitments and optionally encrypted plaintext handoff material. Never include raw usernames, handles, addresses, or locker codes.
+If a future app or API needs order metadata, model that as a separate order object. Do not let the manifest become a generic order schema.
+
+## SDK Class
+
+Generate `EscrowManifest` as a class around `EscrowManifestData`:
+
+- `EscrowManifest.create({ instance, contractSecretKey, createdBlockNumber, txHash })`
+- `manifest.register(wallet)` returns the typed escrow contract after registering the instance and secret key
+- `toJSON()` / `fromJSON(data)`
+- `toString()` / `fromString(json)`
+- `toBase64()` / `fromBase64(encodedJson)`
+- `encrypt(recipientPublicKey)` / `EscrowManifest.decrypt(encrypted, recipientPrivateKey)`
+- `createManifestKeyPair()` for the recipient transport keypair used by manifest encryption
+
+Encryption is for transport. The default template uses ephemeral ECDH, HKDF-SHA256, AES-128-CBC, and HMAC-SHA256; callers should use the helper instead of passing the escrow secret key around directly. The encrypted output is still a string: base64-encoded JSON containing the ephemeral public key, IV, ciphertext, salt, and MAC.
+
+The required leakage test must cover the full transport loop: seller fails to read shared private state before receiving the manifest, seller creates the recipient transport key, buyer encrypts the manifest to that key, seller decrypts/registers through `manifest.register(wallet)`, and seller can then read the shared private data.
 
 ## Registration
 
-To register a secret escrow from a manifest, parse the serialized contract instance, then call:
+Registration should live on the class:
 
 ```typescript
-await wallet.registerContract(instance, EscrowContractArtifact, contractSecretKey);
+const escrow = await EscrowManifest.fromString(serializedManifest).register(wallet);
 ```
 
-If no `contractSecretKey` is available, registration can still attach the artifact/instance, but reads of contract-owned private state should not be expected to work.
+The method should parse `contractInstance` with `ContractInstanceWithAddressSchema`, verify that the instance address matches `address`, then call:
+
+```typescript
+await wallet.registerContract(instance, OTCEscrowContractArtifact, contractSecretKey);
+await wallet.registerSender(instance.address);
+return OTCEscrowContract.at(instance.address, wallet);
+```

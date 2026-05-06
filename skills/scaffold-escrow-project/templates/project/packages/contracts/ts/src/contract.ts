@@ -19,7 +19,7 @@ import {
     TokenContractArtifact
 } from "./artifacts/index.js";
 import { type EscrowConfig } from "./constants.js";
-import { createEscrowManifest, type EscrowManifest } from "./manifest.js";
+import { EscrowManifest } from "./manifest.js";
 
 type DeployOpts = DeployOptions;
 type SendOpts = SendInteractionOptions<InteractionWaitOptions>;
@@ -56,13 +56,13 @@ export async function deployEscrowContract(
     // The deployer needs the escrow's own address scoped in to read the partial-note + config back.
     deployOpts.additionalScopes = [instance.address, ...(deployOpts.additionalScopes ?? [])];
     const { contract, receipt } = await contractDeployment.send(deployOpts);
-    const manifest = createEscrowManifest({
+    if (receipt.blockNumber === undefined) {
+        throw new Error("Escrow deployment receipt did not include a block number");
+    }
+    const manifest = EscrowManifest.create({
         instance,
+        createdBlockNumber: receipt.blockNumber,
         contractSecretKey,
-        sellTokenAddress,
-        sellTokenAmount,
-        buyTokenAddress,
-        buyTokenAmount,
         txHash: receipt.txHash.toString(),
     });
     return { contract, instance, contractSecretKey, manifest };

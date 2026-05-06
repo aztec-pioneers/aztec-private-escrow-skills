@@ -6,7 +6,38 @@ Generated escrow projects should use one monolithic Bun test file:
 packages/contracts/ts/test/escrow.test.ts
 ```
 
-Use `bun:test`, a running local Aztec node, `EmbeddedWallet`, and `getInitialTestAccountsData`. Default `AZTEC_NODE_URL` to `http://localhost:8080`, and create wallets with `pxeConfig: { proverEnabled: false }`. This means localnet, not public testnet.
+Use `bun:test`, a running local Aztec node, `EmbeddedWallet`, and `getInitialTestAccountsData`. Default `AZTEC_NODE_URL` to `http://localhost:8080`, and create wallets with `ephemeral: true` plus `pxeConfig: { proverEnabled }`. This means localnet, not public testnet.
+
+Use a setup helper shaped like this so tests default to fast proving-off PXEs but can opt into proving when needed:
+
+```ts
+type TestWallet = {
+  label: string;
+  wallet: EmbeddedWallet;
+  address: AztecAddress;
+};
+
+async function setupWallet(
+  label: string,
+  accountIndex: number,
+  proverEnabled = false,
+): Promise<TestWallet> {
+  const wallet = await EmbeddedWallet.create(node, {
+    ephemeral: true,
+    pxeConfig: { proverEnabled },
+  });
+  const accountsData = await getInitialTestAccountsData();
+  const account = accountsData[accountIndex];
+  const registeredAccount = await wallet.createSchnorrAccount(
+    account.secret,
+    account.salt,
+    account.signingKey,
+  );
+  return { label, wallet, address: registeredAccount.address };
+}
+```
+
+Do not create temp PXE data directories for normal generated tests; ephemeral wallets are the default isolation mechanism.
 
 ## Validation Flow
 
@@ -62,15 +93,16 @@ Keep local helper functions in the same file until the generated flow stabilizes
 - `setupWallets`
 - `deployTokens`
 - `registerTokenContracts`
-- `registerEscrowWithKey`
 - `expectPrivateBalance`
 - `expectPhase`
 - `expectRejects`
 - `getOrderFilledEvents`
 
+If the test helpers get large enough to justify extraction, put them under `{test_dir}/utils/utils.ts`, where `{test_dir}` is normally `packages/contracts/ts/test`. If there are many utilities, logically split additional files inside `{test_dir}/utils/` and re-export them from `utils.ts`.
+
 ## Required Passing Tests
 
-1. Secret contract key leakage: a wallet without the contract secret key cannot read contract-owned private config/state; the same wallet can read after `registerContract(instance, artifact, contractSecretKey)`.
+1. Secret contract key leakage and handoff: exercise the full manifest transport path, not a direct key pass. Buyer deploys/builds the escrow manifest; seller first registers or instantiates only the contract instance without the manifest key and proves private config/state reads fail; seller creates a recipient manifest transport key with `createManifestKeyPair()`; buyer encrypts the manifest to the seller's public key with `manifest.encrypt(...)`; seller decrypts with `EscrowManifest.decrypt(...)`, calls `decryptedManifest.register(sellerWallet)`, and then proves private config/state reads succeed.
 2. Atomic happy path: maker deposits, filler fills, balances move correctly, escrow balances are emptied, phase becomes `FILLED`, and `OrderFilled` is emitted.
 3. Void before deposit: creator can move `CREATED -> VOID`; deposit/fill after void fail.
 4. Void after deposit: creator can move `OPEN -> VOID`; offered tokens refund to creator; fill after void fails.

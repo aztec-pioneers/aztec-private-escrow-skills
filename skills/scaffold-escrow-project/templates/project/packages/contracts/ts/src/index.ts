@@ -7,11 +7,12 @@ export {
 
 export { TOKEN_METADATA, type EscrowConfig } from "./constants.js";
 export {
-    createEscrowManifest,
-    getContractSecretKeyFromManifest,
-    getEscrowInstanceFromManifest,
-    registerEscrowFromManifest,
-    type EscrowManifest,
+    EscrowManifest,
+    createManifestKeyPair,
+    type EncryptedEscrowManifest,
+    type EscrowManifestData,
+    type ManifestEcdhCurve,
+    type ManifestKeyPair,
 } from "./manifest.js";
 export { precision, isTestnet } from "./utils.js";
 export { getPriorityFeeOptions, getSponsoredPaymentMethod } from "./fees.js";

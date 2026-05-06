@@ -52,7 +52,7 @@ The skill now treats secret contracts and contract-owned shared private state as
 - Artifact, instance, and initialization data let a participant instantiate/register/call the contract wrapper.
 - The contract secret key is required to read contract-owned private notes.
 - Noir role checks still decide who may execute privileged escrow actions.
-- Offchain manifests carry secret contract instance data and optional key material between participants.
+- Offchain manifests carry only the escrow address, serialized contract instance, contract secret key, deployment block, and optional transaction hash. Encrypt the whole manifest for participant handoff.
 - Escrow lifecycle phases are explicit private state: `CREATED`, `OPEN`, `VOID`, optional `ACCEPTED`, optional `SETTLEMENT_IN_PROGRESS`, and `FILLED`.
 - Private creator auth uses a per-caller `RoleSecretNote` whose Poseidon pseudonym is stored in config; taker/filler pseudonyms are stored only when a runtime phase such as `ACCEPTED` binds the accepting caller or the user explicitly asks for allowlisting.
 - Immutable terms live in `ConfigNote`; mutable phase/timer/cancellation data always lives in `StateNote`.

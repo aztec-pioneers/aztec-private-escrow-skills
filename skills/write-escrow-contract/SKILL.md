@@ -139,4 +139,4 @@ const { receipt } = await escrow.methods
 12. **Message delivery**: Use `MessageDelivery.ONCHAIN_CONSTRAINED` for contract-owned shared notes and escrow-addressed fill events, and `MessageDelivery.ONCHAIN_UNCONSTRAINED` for notes delivered to the caller themselves. Do not put sensitive plaintexts in onchain private logs unless the user explicitly chooses that delivery model.
 13. **Time checks**: Use the anchor block timestamp, `self.context.get_anchor_block_header().timestamp()`, for phase deadlines.
 14. **Token deploy**: Use `TokenContract.deployWithOpts({ wallet, method: "constructor_with_minter" }, ...)` not plain `.deploy()`
-15. **Wallets**: Use `EmbeddedWallet.create(node, { pxeConfig })` from `@aztec/wallets/embedded`.
+15. **Wallets**: In generated tests, use `EmbeddedWallet.create(node, { ephemeral: true, pxeConfig: { proverEnabled } })` from `@aztec/wallets/embedded`; helper args should default `proverEnabled` to `false`.

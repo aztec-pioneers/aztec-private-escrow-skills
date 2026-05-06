@@ -6,7 +6,7 @@ Default to private execution and private state. Add public state or public calls
 
 | Material | Enables | Does not enable |
 |---|---|---|
-| Contract artifact, instance, constructor args, salt, deployer, public keys | Reconstructing the contract wrapper, verifying the address/initialization data, forming calls, and registering the artifact/instance locally | Reading encrypted contract-owned private notes |
+| Contract artifact and instance | Reconstructing the contract wrapper, forming calls, and registering the artifact/instance locally | Reading encrypted contract-owned private notes |
 | Contract secret key | PXE/wallet access to decrypt, read, and potentially nullify notes owned by the contract address | Authorization by itself, unless the Noir contract deliberately treats key possession as sufficient |
 | Participant account key | Sending as that account and proving account-owned private state | Reading contract-owned private state without the contract secret key |
 | RoleSecretNote | Proving that the caller owns a private maker/taker/filler pseudonym expected by escrow config or lifecycle state; for `ACCEPTED`, this is normally the accepting caller's runtime pseudonym | Reading shared escrow state, moving escrow-owned funds by itself, or proving the caller was predesignated |
@@ -19,6 +19,6 @@ Default to private execution and private state. Add public state or public calls
 2. Keep shared escrow data in contract-owned private state when all participants need to read the same facts privately.
 3. Put role restrictions in Noir logic. Do not rely on possession of the contract secret key as the only role gate unless the user explicitly wants that model.
 4. Keep offchain manifests and future discovery services as handoff layers. They should not become the source of truth for escrow state.
-5. If a participant receives an artifact/instance manifest without the contract secret key, they can instantiate the contract but should be expected to fail private reads that require contract-owned notes.
+5. If a participant registers only the artifact/instance without the contract secret key, they can instantiate the wrapper but should be expected to fail private reads that require contract-owned notes. A complete escrow manifest includes the contract secret key and should be encrypted for transport.
 6. Role-secret notes are the main exception to the contract-owned shared-state default. Their `owner` field is the creator/participant address, they are delivered to that caller, and only their pseudonym is stored in shared config or lifecycle state.
 7. For recoverable sensitive terms, store salted commitments onchain and deliver plaintexts offchain through the same secure handoff channel as the contract secret key.

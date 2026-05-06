@@ -42,9 +42,9 @@ If the address must be deterministic, use the same `contractAddressSalt` and add
 
 ## Participant Handoff
 
-Participants need an escrow manifest. At minimum it should contain the contract address, serialized contract instance, artifact identity, constructor args, salt/deployer/public keys if used, and Aztec/package versions.
+Participants need an escrow manifest. It should contain the contract address, serialized `ContractInstanceWithAddress`, contract secret key, deployment block number, and transaction hash.
 
-If the manifest does not include the contract secret key or a way to decrypt it, the recipient can reconstruct/register the instance but cannot read contract-owned private notes.
+The generated SDK imports the escrow artifact locally, so the manifest should not carry artifact name/hash, salt, deployer, skip-publication flags, or version metadata. If a recipient does not receive the contract secret key, they do not have a complete escrow manifest for shared private-state reads.
 
 ## When To Publish
 

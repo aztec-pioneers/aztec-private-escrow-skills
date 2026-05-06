@@ -154,7 +154,7 @@ Testing for generated escrow projects should be TypeScript/Bun-based around the 
 Keep the full details in the referenced files and templates. For scaffold runs, preserve these rules:
 
 1. **Version + TS shape**: Target Aztec `4.2.0`, Bun, `EmbeddedWallet`, workspace catalog pinning, package imports such as `@aztec-otc-desk/contracts`, subpath `@aztec/*` imports, and NodeNext `.js` suffixes for handwritten relative TS imports.
-2. **Secret contract handoff**: Private-only escrow contracts need an offchain manifest. Artifact/init data lets participants instantiate the wrapper; the contract secret key is required to read contract-owned private state.
+2. **Secret contract handoff**: Private-only escrow contracts need an offchain manifest class. Include only address, serialized `ContractInstanceWithAddress`, contract secret key, creation block, and tx hash; encrypt the whole manifest for transport when sending it to another participant.
 3. **Shared private state**: `ConfigNote` and `StateNote` are contract-owned private notes. Pass `additionalScopes` on deploy/deposit/fill calls that read or nullify escrow-owned notes.
 4. **Roles + lifecycle**: Use role-secret pseudonyms for private role checks, `StateNote` for all phase/cancel/fill state, and no custom fill/deposit nullifiers by default.
 5. **Output scope**: Generate contracts plus the TypeScript SDK and TypeScript/Bun tests only. Do not scaffold API, CLI, demo app, or Aztec.nr/TXE test scripts.

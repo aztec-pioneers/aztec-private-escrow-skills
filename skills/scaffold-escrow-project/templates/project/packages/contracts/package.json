@@ -18,7 +18,7 @@
     "copy-artifacts": "bun run scripts/add_artifacts.ts",
     "build": "bun run compile && bun run codegen && bun run copy-artifacts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test ts/test"
+    "test": "bun test --timeout 300000 ts/test"
   },
   "dependencies": {
     "@aztec/aztec.js": "catalog:",
