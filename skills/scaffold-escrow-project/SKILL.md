@@ -1,12 +1,12 @@
 ---
 name: scaffold-escrow-project
-description: Scaffold a complete Aztec private escrow project from scratch - Noir contracts, TypeScript library, orderflow API, CLI scripts. One-shot build with correct deps.
+description: "Scaffold generalized Aztec private escrow projects from scratch: secret contracts, contract-owned shared private state, Noir contracts, and TypeScript SDK. Use for private escrow systems, atomic swaps, or escrow protocol prototypes."
 allowed-tools: Bash Read Write Edit Glob Grep Agent
 ---
 
 # Scaffold Aztec Private Escrow Project
 
-Create a complete private OTC escrow system on Aztec from scratch. This skill produces a working monorepo with Noir contracts, TypeScript interaction library, orderflow API, and CLI scripts.
+Create a private escrow contract package on Aztec from scratch. The default preset is the OTC atomic swap, but the skill should generalize to other private escrow protocols that use secret contracts, contract-owned shared private state, explicit participant roles, and a TypeScript SDK.
 
 ## Prerequisites
 
@@ -16,7 +16,27 @@ Create a complete private OTC escrow system on Aztec from scratch. This skill pr
 
 ## What To Build
 
-Create a directory called `aztec-otc-desk/` (or whatever name the user requests) with the structure described below.
+Create a directory called `aztec-otc-desk/` (or whatever name the user requests) with the structure described below. If the user asks for a non-OTC escrow, adapt the Noir contract and TypeScript SDK while preserving the private deployment and shared-state model.
+
+## Reference Loading
+
+Load these only when they are relevant:
+
+- `references/privacy-model.md` - privacy capability boundaries and defaults.
+- `references/secret-contracts.md` - private/secret deployment, contract instance reconstruction, and key registration.
+- `references/shared-private-state.md` - contract-owned private storage that all escrow participants may read with the contract secret key.
+- `references/escrow-design-space.md` - choosing a generalized escrow shape instead of the OTC preset.
+- `references/design-intake.md` - pre-scaffold questions for phase selection, timing windows, and config/state fields.
+- `references/lifecycle-phases.md` - CREATED/OPEN/VOID/ACCEPTED/SETTLEMENT_IN_PROGRESS/FILLED lifecycle design.
+- `references/manifest-schema.md` - offchain escrow instance manifest fields for participant handoff.
+
+## Fresh Project Intake
+
+Before scaffolding a new project or redesigning the lifecycle/config/state model, load `references/design-intake.md` and run the short intake there. A project is "new" if the target directory does not exist or lacks `packages/contracts/Nargo.toml` and `packages/contracts/src/main.nr`.
+
+If it is new, tell the user once: "This skill is best used in Plan mode first." If the user says they do not want Plan mode, continue, but state that they are asking the skill to make design assumptions that may need correction later.
+
+Skip this warning when the project is already initialized, when the user is continuing an in-progress design after compaction or a new Codex session, or when the requested change is narrow and does not alter the lifecycle/config/state shape.
 
 ## Step-by-step
 
@@ -41,12 +61,15 @@ aztec-otc-desk/
 │   │   ├── src/
 │   │   │   ├── main.nr
 │   │   │   └── types/
-│   │   │       └── config_note.nr
+│   │   │       ├── config_note.nr
+│   │   │       ├── state_note.nr
+│   │   │       └── role_secret_note.nr
 │   │   └── ts/
 │   │       └── src/
 │   │           ├── index.ts
 │   │           ├── contract.ts
 │   │           ├── constants.ts
+│   │           ├── manifest.ts
 │   │           ├── utils.ts
 │   │           ├── fees.ts
 │   │           └── artifacts/
@@ -57,40 +80,18 @@ aztec-otc-desk/
 │   │               └── token/
 │   │                   ├── Token.ts
 │   │                   └── Token.json
-│   ├── api/
-│   │   ├── package.json
-│   │   └── src/
-│   │       ├── index.ts
-│   │       ├── db/
-│   │       ├── handlers/
-│   │       ├── types/
-│   │       └── utils/
-│   └── cli/
-│       ├── package.json
-│       ├── .env
-│       └── scripts/
-│           ├── deploy.ts
-│           ├── mint.ts
-│           ├── setup_accounts.ts
-│           ├── create_order.ts
-│           ├── buy_order.ts
-│           ├── print_balances.ts
-│           ├── data/
-│           └── utils/
-│               ├── index.ts
-│               ├── api.ts
-│               └── types.ts
 ```
 
 ### 2. Write all files
 
 Use the templates in this skill directory:
-- `root-package-json.md` — root `package.json`, sub-package manifests, `Nargo.toml`, `scripts/token.ts`, `.gitmodules`
-- `../write-escrow-contract/contract-template.md` — Noir contract source
-- `../write-escrow-contract/config-note-template.md` — ConfigNote
-- `ts-library-template.md` — All TypeScript library files (uses `EmbeddedWallet`, subpath imports, `additionalScopes`)
-- `api-template.md` — Orderflow API (plain Bun + SQLite, no Aztec deps)
-- `cli-template.md` — CLI scripts and utils
+- `templates/root-package-json.md` - root `package.json`, sub-package manifests, `Nargo.toml`, `scripts/token.ts`, `.gitmodules`
+- `../write-escrow-contract/templates/contract-template.md` - Noir contract source
+- `../write-escrow-contract/templates/config-note-template.md` - ConfigNote
+- `../write-escrow-contract/templates/state-note-template.md` - optional mutable StateNote for phase/timer flows
+- `../write-escrow-contract/templates/role-secret-note-template.md` - caller-owned RoleSecretNote for private role authentication
+- `../write-escrow-contract/templates/order-filled-event-template.md` - required private fill receipt event
+- `templates/ts-library-template.md` - All TypeScript library files (uses `EmbeddedWallet`, subpath imports, `additionalScopes`)
 
 ### 3. Install dependencies (also builds the token artifact)
 
@@ -117,24 +118,9 @@ bun run build
 
 Runs `aztec compile && aztec codegen && bun run scripts/add_artifacts.ts` — the codegen drops bindings into `ts/src/artifacts/escrow/` and `add_artifacts.ts` rewrites the JSON import path.
 
-### 5. Run the flow
+### 5. Stop at SDK + contracts
 
-```bash
-# Start API
-cd packages/api && rm -f orders.sqlite && bun run start &
-sleep 2
-
-# Deploy, mint, trade
-cd ../cli
-bun run setup:deploy
-bun run setup:mint
-bun run balances
-bun run order:create
-bun run order:fill
-bun run balances
-```
-
-(Sandbox uses pre-funded test accounts from `getInitialTestAccountsData()`. For testnet, run `bun run setup:accounts` first to mint persistent seller/buyer accounts to `data/accounts.json`.)
+Do not scaffold an API, CLI, orderflow service, or runnable demo flow for now. Expose deployment, registration, authwit, manifest, and contract interaction helpers from the TypeScript SDK so an app or test harness can be added later.
 
 ## Key version + dependency notes (4.2.0-aztecnr-rc.2)
 
@@ -149,3 +135,19 @@ bun run balances
 5. **Subpath imports**: import from sub-paths, e.g. `@aztec/aztec.js/addresses`, `/fields`, `/contracts`, `/wallet`, `/node`, `/abi`, `/tx`, `/fee`; `@aztec/stdlib/{aztec-address,contract,auth-witness,keys,gas}`; `@aztec/wallets/embedded`; `@aztec/pxe/config`; `@aztec/noir-contracts.js/SponsoredFPC`.
 
 6. **Authwit pattern**: `getFunctionCall()` → `wallet.createAuthWit(from, { caller, call })` → `.with({ authWitnesses: [authwit] })`.
+
+7. **Secret contracts**: For private-only escrow contracts, do not assume `node.getContract(address)` can recover the instance. Share an offchain escrow manifest with the artifact identity, contract instance, constructor args, salt/deployer/public keys, and key material as needed.
+
+8. **Capability split**: Artifact plus init knowledge lets a participant instantiate/register/call the contract wrapper, but it does not let them read contract-owned private state. The contract secret key is the private-state read/nullify capability and must be handled as sensitive access material.
+
+9. **Shared private state**: Escrow configuration and lifecycle state should usually be contract-owned private state. Anyone who should read it needs the contract secret key registered in their wallet/PXE; anyone who should act still needs to pass the Noir role/auth checks.
+
+10. **Lifecycle phases**: Model escrow state with explicit phases. Atomic one-shot onchain settlement only needs CREATED -> OPEN -> FILLED plus VOID; longer offchain settlement flows may add ACCEPTED and SETTLEMENT_IN_PROGRESS. Load `references/lifecycle-phases.md` before designing custom phase transitions.
+
+11. **Role-secret auth**: For private maker/taker/filler authentication, generate caller-owned `RoleSecretNote`s in `Owned<PrivateImmutable<...>>`, store role pseudonyms as `Field`s in config, and check the caller's pseudonym in role-gated private entrypoints.
+
+12. **Config/state split**: Immutable order terms live in `ConfigNote`; mutable lifecycle data lives in `StateNote` when needed. Sensitive plaintext terms never go into onchain note messages; store commitments and deliver plaintexts offchain.
+
+13. **Fill receipts**: Every successful fill emits an `OrderFilled` private event to the escrow address with `MessageDelivery.ONCHAIN_CONSTRAINED`. This can include delivery commitments or deliberately event-carried scalar payloads for designs like private message delivery.
+
+14. **No custom fill/deposit nullifiers by default**: One-shot atomic settlement is asset-gated and intentionally open to replay if the maker funds the escrow again. Generated docs should call this out as a maker foot gun; stateful escrows should use `StateNote` terminal phase checks instead of custom order-level nullifiers.

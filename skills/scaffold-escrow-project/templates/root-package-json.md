@@ -20,7 +20,6 @@
       "@aztec/wallets": "4.2.0-aztecnr-rc.2",
       "@aztec/wallet-sdk": "4.2.0-aztecnr-rc.2",
       "@types/bun": "latest",
-      "dotenv": "^17.2.1",
       "typescript": "^5.0.0"
     }
   },
@@ -50,6 +49,7 @@ All `@aztec/*` packages share one version, pinned via the root `workspaces.catal
     "./constants": "./ts/src/constants.ts",
     "./contract": "./ts/src/contract.ts",
     "./fees": "./ts/src/fees.ts",
+    "./manifest": "./ts/src/manifest.ts",
     "./utils": "./ts/src/utils.ts"
   },
   "scripts": {
@@ -71,72 +71,12 @@ All `@aztec/*` packages share one version, pinned via the root `workspaces.catal
     "@aztec/wallets": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
-    "dotenv": "catalog:"
+    "@types/bun": "catalog:"
   },
   "peerDependencies": {
     "typescript": "catalog:"
   }
 }
-```
-
-## Sub-package: packages/api/package.json
-
-```json
-{
-  "name": "@aztec-otc-desk/api",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "src/index.ts",
-  "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun run --watch src/index.ts"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.0.0",
-    "typescript": "^5.0.0"
-  }
-}
-```
-
-## Sub-package: packages/cli/package.json
-
-```json
-{
-  "name": "@aztec-otc-desk/cli",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "balances": "bun run scripts/print_balances.ts",
-    "setup:accounts": "bun run scripts/setup_accounts.ts",
-    "setup:deploy": "bun run scripts/deploy.ts",
-    "setup:mint": "bun run scripts/mint.ts",
-    "order:create": "bun run scripts/create_order.ts",
-    "order:fill": "bun run scripts/buy_order.ts"
-  },
-  "devDependencies": {
-    "@aztec/aztec.js": "catalog:",
-    "@aztec/accounts": "catalog:",
-    "@aztec/ethereum": "catalog:",
-    "@aztec/noir-contracts.js": "catalog:",
-    "@aztec/pxe": "catalog:",
-    "@aztec/stdlib": "catalog:",
-    "@aztec/wallets": "catalog:",
-    "@aztec-otc-desk/contracts": "workspace:*",
-    "@types/bun": "catalog:",
-    "dotenv": "catalog:"
-  },
-  "peerDependencies": {
-    "typescript": "catalog:"
-  }
-}
-```
-
-## .env (packages/cli/.env)
-
-```
-L2_NODE_URL=http://localhost:8080
-API_URL=http://localhost:3000
 ```
 
 ## .gitignore
@@ -144,9 +84,6 @@ API_URL=http://localhost:3000
 ```
 node_modules/
 target/
-*.sqlite
-packages/cli/scripts/data/deployments.json
-packages/cli/scripts/data/accounts.json
 ```
 
 ## Nargo.toml (packages/contracts/Nargo.toml)

@@ -79,11 +79,15 @@ Patterns:
 
 - **Authwit:** `.getFunctionCall()` → `wallet.createAuthWit(from, { caller, call })` → `.with({ authWitnesses: [authwit] })`.
 - **`additionalScopes` is required** when an account needs to read another contract's notes inside a private function. Deploying an escrow that immediately writes a note about itself, depositing into the escrow, and filling it all need the escrow address scoped in.
+- **Token APIs are adapter-specific:** helper names should describe escrow capabilities. The concrete token method names below are only valid if they match the selected token binding.
+- **Fill receipts:** `fill_order` emits an escrow-addressed `OrderFilled` private event with constrained onchain delivery. The SDK can return the tx hash and leave event decoding to the consuming app/test harness.
+- **No custom order-level fill/deposit nullifiers:** one-shot fills are asset-gated and can replay if the maker funds the escrow again. Document this in generated app/test code instead of adding a default replay guard.
 
 ```typescript
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import type {
     ContractInstanceWithAddress,
+    DeployOptions,
     InteractionWaitOptions,
     SendInteractionOptions,
     SimulateInteractionOptions,
@@ -101,6 +105,7 @@ import {
     TokenContractArtifact
 } from "./artifacts";
 import { type EscrowConfig } from "./constants";
+import { createEscrowManifest, type EscrowManifest } from "./manifest";
 
 export async function deployEscrowContract(
     wallet: Wallet,
@@ -109,21 +114,41 @@ export async function deployEscrowContract(
     sellTokenAmount: bigint,
     buyTokenAddress: AztecAddress,
     buyTokenAmount: bigint,
-    opts: { send: SendInteractionOptions<InteractionWaitOptions> } = { send: { from } }
-): Promise<{ contract: OTCEscrowContract, instance: ContractInstanceWithAddress, secretKey: Fr }> {
-    const secretKey = Fr.random();
-    const contractPublicKeys = (await deriveKeys(secretKey)).publicKeys;
+    opts: { send: DeployOptions } = { send: { from } }
+): Promise<{
+    contract: OTCEscrowContract,
+    instance: ContractInstanceWithAddress,
+    contractSecretKey: Fr,
+    manifest: EscrowManifest,
+}> {
+    const contractSecretKey = Fr.random();
+    const contractPublicKeys = (await deriveKeys(contractSecretKey)).publicKeys;
     const contractDeployment = await OTCEscrowContract.deployWithPublicKeys(
         contractPublicKeys, wallet,
         sellTokenAddress, sellTokenAmount,
         buyTokenAddress, buyTokenAmount,
     );
-    const instance = await contractDeployment.getInstance();
-    await wallet.registerContract(instance, OTCEscrowContractArtifact, secretKey);
+    const deployOpts = {
+        from,
+        skipClassPublication: true,
+        skipInstancePublication: true,
+        ...opts.send,
+    };
+    const instance = await contractDeployment.getInstance(deployOpts);
+    await wallet.registerContract(instance, OTCEscrowContractArtifact, contractSecretKey);
     // The deployer needs the escrow's own address scoped in to read the partial-note + config back.
-    opts.send = { additionalScopes: [instance.address], ...opts.send };
-    const { contract } = await contractDeployment.send(opts.send);
-    return { contract, instance, secretKey };
+    deployOpts.additionalScopes = [instance.address, ...(deployOpts.additionalScopes ?? [])];
+    const { contract, receipt } = await contractDeployment.send(deployOpts);
+    const manifest = createEscrowManifest({
+        instance,
+        contractSecretKey,
+        sellTokenAddress,
+        sellTokenAmount,
+        buyTokenAddress,
+        buyTokenAmount,
+        txHash: receipt.txHash.toString(),
+    });
+    return { contract, instance, contractSecretKey, manifest };
 }
 
 export async function deployTokenContract(
@@ -216,12 +241,140 @@ export const getTokenContract = async (
 export const getEscrowContract = async (
     wallet: Wallet, from: AztecAddress,
     escrowAddress: AztecAddress, contractInstance: ContractInstanceWithAddress,
-    escrowSecretKey: Fr,
+    contractSecretKey: Fr,
 ): Promise<OTCEscrowContract> => {
-    await wallet.registerContract(contractInstance, OTCEscrowContractArtifact, escrowSecretKey);
+    await wallet.registerContract(contractInstance, OTCEscrowContractArtifact, contractSecretKey);
     await wallet.registerSender(escrowAddress);
     return await OTCEscrowContract.at(escrowAddress, wallet);
 };
+```
+
+## packages/contracts/ts/src/manifest.ts
+
+```typescript
+import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { Fr } from "@aztec/aztec.js/fields";
+import type { Wallet } from "@aztec/aztec.js/wallet";
+import {
+    ContractInstanceWithAddressSchema,
+    type ContractInstanceWithAddress,
+} from "@aztec/stdlib/contract";
+import {
+    OTCEscrowContract,
+    OTCEscrowContractArtifact,
+} from "./artifacts";
+
+export type EscrowManifest = {
+    version: 1;
+    kind: string;
+    aztecVersion: string;
+    deployment: {
+        address: string;
+        contractInstance: unknown;
+        artifactName: string;
+        constructorArgs: {
+            sellTokenAddress: string;
+            sellTokenAmount: string;
+            buyTokenAddress: string;
+            buyTokenAmount: string;
+        };
+        publicKeys?: unknown;
+        skipClassPublication?: boolean;
+        skipInstancePublication?: boolean;
+        txHash?: string;
+    };
+    access?: {
+        contractSecretKey?: string;
+        encryptedContractSecretKey?: string;
+        encryptionScheme?: string;
+        visibleCapabilities: Array<"instantiate" | "read-shared-private-state" | "execute-private-calls">;
+    };
+    roles?: Array<{
+        name: string;
+        address?: string;
+        pseudonym?: string;
+        commitment?: string;
+        capabilities: string[];
+    }>;
+    lifecycle?: {
+        phases: string[];
+        initialPhase: string;
+        terminalPhases: string[];
+        immutableWindows?: Record<string, string>;
+    };
+    sensitiveTerms?: Array<{
+        key: string;
+        commitment: string;
+        encryptedPlaintext?: string;
+        encryptionScheme?: string;
+    }>;
+    metadata?: Record<string, unknown>;
+};
+
+export function createEscrowManifest(args: {
+    instance: ContractInstanceWithAddress;
+    contractSecretKey?: Fr;
+    sellTokenAddress: AztecAddress;
+    sellTokenAmount: bigint;
+    buyTokenAddress: AztecAddress;
+    buyTokenAmount: bigint;
+    txHash?: string;
+    kind?: string;
+}): EscrowManifest {
+    return {
+        version: 1,
+        kind: args.kind ?? "otc-atomic-swap",
+        aztecVersion: "4.2.0-aztecnr-rc.2",
+        deployment: {
+            address: args.instance.address.toString(),
+            contractInstance: JSON.parse(JSON.stringify(args.instance)),
+            artifactName: "OTCEscrow",
+            constructorArgs: {
+                sellTokenAddress: args.sellTokenAddress.toString(),
+                sellTokenAmount: args.sellTokenAmount.toString(),
+                buyTokenAddress: args.buyTokenAddress.toString(),
+                buyTokenAmount: args.buyTokenAmount.toString(),
+            },
+            skipClassPublication: true,
+            skipInstancePublication: true,
+            txHash: args.txHash,
+        },
+        access: args.contractSecretKey
+            ? {
+                contractSecretKey: args.contractSecretKey.toString(),
+                visibleCapabilities: [
+                    "instantiate",
+                    "read-shared-private-state",
+                    "execute-private-calls",
+                ],
+            }
+            : { visibleCapabilities: ["instantiate"] },
+    };
+}
+
+export function getEscrowInstanceFromManifest(
+    manifest: EscrowManifest,
+): ContractInstanceWithAddress {
+    return ContractInstanceWithAddressSchema.parse(manifest.deployment.contractInstance);
+}
+
+export function getContractSecretKeyFromManifest(
+    manifest: EscrowManifest,
+): Fr | undefined {
+    const raw = manifest.access?.contractSecretKey;
+    return raw ? Fr.fromString(raw) : undefined;
+}
+
+export async function registerEscrowFromManifest(
+    wallet: Wallet,
+    manifest: EscrowManifest,
+): Promise<OTCEscrowContract> {
+    const instance = getEscrowInstanceFromManifest(manifest);
+    const contractSecretKey = getContractSecretKeyFromManifest(manifest);
+    await wallet.registerContract(instance, OTCEscrowContractArtifact, contractSecretKey);
+    await wallet.registerSender(instance.address);
+    return OTCEscrowContract.at(AztecAddress.fromString(manifest.deployment.address), wallet);
+}
 ```
 
 ## packages/contracts/ts/src/index.ts
@@ -235,6 +388,13 @@ export {
 } from "./contract.js";
 
 export { TOKEN_METADATA, type EscrowConfig } from "./constants.js";
+export {
+    createEscrowManifest,
+    getContractSecretKeyFromManifest,
+    getEscrowInstanceFromManifest,
+    registerEscrowFromManifest,
+    type EscrowManifest,
+} from "./manifest.js";
 export { wad, isTestnet } from "./utils.js";
 export { getPriorityFeeOptions, getSponsoredPaymentMethod } from "./fees.js";
 ```

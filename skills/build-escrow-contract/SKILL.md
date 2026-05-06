@@ -1,7 +1,6 @@
 ---
 name: build-escrow-contract
-description: Compile Aztec Noir escrow contracts from source and generate TypeScript bindings. Use after modifying contract source code.
-disable-model-invocation: true
+description: Compile Aztec Noir escrow contracts from source and generate TypeScript bindings. Use when the user asks to build, verify compilation, or after modifying contract source code.
 allowed-tools: Bash Read Grep
 ---
 
@@ -13,6 +12,8 @@ Compile the Aztec Noir smart contracts and generate TypeScript bindings.
 
 - Aztec CLI v4.2.0-aztecnr-rc.2 (`aztec` in PATH)
 - Bun runtime installed
+
+Commands assume the generated project is `aztec-otc-desk` under the current directory. Set `PROJECT_DIR` for a custom name, or use `PROJECT_DIR=.` when already inside the generated project.
 
 ## How the build is wired
 
@@ -35,7 +36,7 @@ bun run scripts/token.ts --skip-submodules   # uses what's already on disk
 ### 1. Build the escrow contract
 
 ```bash
-cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk/packages/contracts
+cd "${PROJECT_DIR:-aztec-otc-desk}/packages/contracts"
 bun run build
 ```
 
@@ -44,7 +45,7 @@ This is `aztec compile && aztec codegen target --outdir ts/src/artifacts/escrow 
 ### 2. (Re)build the token artifact, if you changed the standard
 
 ```bash
-cd ${CLAUDE_SKILL_DIR}/../../aztec-otc-desk
+cd "${PROJECT_DIR:-aztec-otc-desk}"
 bun run scripts/token.ts
 ```
 
@@ -62,6 +63,8 @@ packages/contracts/
     main.nr              # OTCEscrow contract
     types/
       config_note.nr     # ConfigNote (escrow parameters)
+      state_note.nr      # optional mutable lifecycle phase/timer state
+      role_secret_note.nr # caller-owned role-secret pseudonym note
     test/
       escrow.nr          # TXE test suite
       utils/             # Test helpers
@@ -76,6 +79,7 @@ packages/contracts/
         Token.json       # Compiled artifact
     contract.ts          # Contract interaction functions
     constants.ts         # Token metadata, EscrowConfig type
+    manifest.ts          # Secret escrow instance manifest helpers
     fees.ts              # Fee payment helpers (SponsoredFPC, priority fees)
     utils.ts             # Utilities (wad, isTestnet)
 ```
@@ -86,14 +90,16 @@ packages/contracts/
 use aztec::protocol::address::AztecAddress;
 use aztec::protocol::traits::{Serialize, Deserialize, Packable};
 use aztec::oracle::random::random;
-use aztec::state_vars::SinglePrivateImmutable;
+use aztec::state_vars::{Owned, PrivateImmutable, SinglePrivateImmutable, SinglePrivateMutable};
 use aztec::messages::message_delivery::MessageDelivery;
 use aztec::macros::{aztec, notes::note, functions::{initializer, external}, storage::storage};
 use aztec::test::helpers::{test_environment::TestEnvironment, authwit, txe_oracles};
 ```
 
 - `self.msg_sender()` returns `AztecAddress` directly
-- `MessageDelivery.ONCHAIN_CONSTRAINED` for guaranteed note delivery
+- `MessageDelivery.ONCHAIN_CONSTRAINED` for guaranteed delivery of contract-owned shared notes
+- `MessageDelivery.ONCHAIN_UNCONSTRAINED` for caller-owned role-secret notes delivered to the caller themselves
+- `self.context.get_anchor_block_header().timestamp()` for private phase deadline checks
 - `unsafe` blocks in unconstrained functions are unnecessary
 - `unsafe` in constrained code needs `// Safety:` comments
 

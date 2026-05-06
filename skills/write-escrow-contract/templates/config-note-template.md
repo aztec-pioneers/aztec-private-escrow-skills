@@ -1,5 +1,9 @@
 # ConfigNote Template (Noir)
 
+Use `ConfigNote` for immutable order terms: maker pseudonym, offered asset, offered amount, requested consideration terms, partial-note commitments, immutable windows, and salted commitments to sensitive offchain terms.
+
+Do not store plaintext usernames, account handles, or shipping addresses in config. Store salted commitments only and deliver plaintexts offchain through the same secure channel as the contract secret key.
+
 ```noir
 use aztec::{
     macros::notes::note,
@@ -9,7 +13,6 @@ use aztec::{
         address::AztecAddress,
     },
 };
-use poseidon::poseidon2::Poseidon2;
 
 #[derive(Eq, Serialize, Deserialize, Packable)]
 #[note]
@@ -44,10 +47,19 @@ impl ConfigNote {
         }
     }
 
-    pub fn get_nullifier(self, deposit: bool) -> Field {
-        let serialized = self.serialize();
-        let preimage = serialized.concat([deposit as Field]);
-        Poseidon2::hash(preimage, 8)
-    }
 }
 ```
+
+For richer escrows, add fields as needed:
+
+```noir
+pub maker_pseudonym: Field,
+pub taker_pseudonym: Field,
+pub filler_pseudonym: Field,
+pub requested_term_commitment: Field,
+pub accept_window: u64,
+pub fill_window: u64,
+pub settlement_window: u64,
+```
+
+Only include role pseudonyms that are actually known at config time. For open orders, taker/filler pseudonyms are often bound later during `ACCEPTED` or `FILLED` state transitions rather than in the constructor.
