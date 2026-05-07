@@ -8,7 +8,7 @@ Before writing concrete Noir or TypeScript calls, inspect the selected token con
 
 | Escrow capability | What it means | Authwit expectation |
 |---|---|---|
-| Private deposit into escrow | Participant transfers an offered asset into escrow-owned private state. | Participant authorizes the token call with escrow as caller. |
+| Private constructor funding into escrow | Maker transfers the offered asset into escrow-owned private state during deployment/construction. | Maker authorizes the token call with escrow as caller after the SDK computes the final contract instance/address. |
 | Private refund from escrow | Escrow returns escrow-owned asset notes to maker/creator on `VOID` or recovery. | No participant spending authwit should be needed for escrow-owned notes; Noir role/phase checks still gate the action. |
 | Private payout from escrow | Escrow releases maker's offered asset to the taker after delivery succeeds. | No taker spending authwit should be needed for escrow-owned notes; Noir role/phase checks still gate the action. |
 | Private transfer to commitment | Escrow completes a maker-provided receive commitment or partial note. | Usually called from escrow-owned funds after taker consideration has entered escrow. |
@@ -30,9 +30,9 @@ This keeps participant addresses out of the receive path and makes the escrow th
 
 Name SDK helpers by capability, not by one token contract method:
 
-- `createPrivateDepositAuthwit`
+- `getPrivateTransferAuthwit` when one helper intentionally covers both constructor funding and fill transfer authwits
 - `createPrivateCommitmentFillCall`
-- `depositOfferedAsset`
+- `deployFundedEscrow`
 - `voidEscrow`
 - `fillEscrow`
 

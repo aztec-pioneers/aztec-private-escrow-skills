@@ -4,11 +4,11 @@ Canonical source: `../scaffold-escrow-project/templates/project/packages/contrac
 
 Use `StateNote` for lifecycle state by default. Even atomic one-shot onchain settlement flows need it when the order can be voided, because `VOID` and `FILLED` must be durable terminal phases.
 
-For a single escrow-wide state value, use `SinglePrivateMutable<StateNote, Context>` and initialize/replace notes with storage owner `self.address`:
+For a single escrow-wide state value, use `SinglePrivateMutable<StateNote, Context>` and initialize/replace notes with storage owner `self.address`. The default escrow initializes directly to `OPEN` because constructor funding has already moved the maker's offered asset into escrow:
 
 ```noir
 self.storage.state
-    .initialize(StateNote::created(), self.address)
+    .initialize(StateNote::open(), self.address)
     .deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 ```
 

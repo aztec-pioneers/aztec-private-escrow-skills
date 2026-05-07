@@ -6,7 +6,7 @@ The contract secret key is a read/nullify capability for contract-owned private 
 
 | Role | Typical authority |
 |---|---|
-| Maker | Create terms, deposit offered asset, cancel before fill |
+| Maker | Create terms, fund the offered asset during construction, cancel before fill |
 | Taker | Fill terms by providing consideration |
 | Arbiter | Release, refund, or resolve a dispute |
 | Admin | Configure protocol parameters, not per-escrow funds unless explicitly intended |
@@ -51,8 +51,8 @@ The TypeScript SDK should expose `retrieveRoleSecret(wallet, node, escrow, recip
 
 1. Store role pseudonyms or role commitments in the shared private config/state note depending on privacy requirements. Do not store participant addresses for creator authorization unless the user explicitly chooses address-based auth.
 2. In each private entrypoint, read the config/state and assert the caller's supplied role secret hashes to the required role pseudonym. Creator checks usually compare against config; post-accept taker/filler checks usually compare against state.
-3. Use authwits for token movement from participant accounts into the escrow.
-4. Use `StateNote` lifecycle phase checks, deadlines, and asset availability for action gating. Do not add custom fill/deposit nullifiers in the default templates.
+3. Use authwits for token movement from participant accounts into the escrow, including constructor funding.
+4. Use `StateNote` lifecycle phase checks, deadlines, and asset availability for action gating. Do not add custom fill/funding nullifiers in the default templates.
 5. If role membership must remain private, store commitments and require the caller to prove membership instead of exposing an address field.
 
 ## Guardrail

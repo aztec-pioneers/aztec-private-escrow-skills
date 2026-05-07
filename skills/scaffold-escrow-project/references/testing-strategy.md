@@ -1,9 +1,10 @@
 # TypeScript Test Strategy
 
-Generated escrow projects should use one monolithic Bun test file plus one Bun preload shim:
+Generated escrow projects should use one monolithic Bun test file, one utility barrel, and one Bun preload shim:
 
 ```text
 packages/contracts/ts/test/escrow.test.ts
+packages/contracts/ts/test/utils/utils.ts
 packages/contracts/ts/test/setup.ts
 ```
 
@@ -104,8 +105,8 @@ Prefer package imports in tests:
 import {
   deployEscrowContract,
   deployTokenContract,
-  depositToEscrow,
   fillOTCOrder,
+  voidEscrow,
 } from "@aztec-otc-desk/contracts";
 
 import {
@@ -125,12 +126,12 @@ describe("private escrow", () => {
   describe("void", () => {});
   describe("phase failures", () => {});
   describe("role pseudonym failures", () => {});
-  describe("authwit and token failures", () => {});
+  describe("token transfer failures", () => {});
   describe.skip("offchain delivery flows", () => {});
 });
 ```
 
-Keep local helper functions in the same file until the generated flow stabilizes:
+Keep test cases in `escrow.test.ts`, but put reusable helper functions in `{test_dir}/utils/utils.ts`, where `{test_dir}` is normally `packages/contracts/ts/test`. At minimum, this includes helpers such as:
 
 - `setupWallets`
 - `deployTokens`
@@ -140,28 +141,27 @@ Keep local helper functions in the same file until the generated flow stabilizes
 - `expectRejects`
 - `getOrderFilledEvent`
 - `retrieveRoleSecret`
+- `voidEscrow`
 
-If the test helpers get large enough to justify extraction, put them under `{test_dir}/utils/utils.ts`, where `{test_dir}` is normally `packages/contracts/ts/test`. If there are many utilities, logically split additional files inside `{test_dir}/utils/` and re-export them from `utils.ts`.
+`escrow.test.ts` should import helpers from `./utils/utils.js` under NodeNext. If there are many utilities, logically split additional files inside `{test_dir}/utils/` and re-export them from `utils.ts`.
+
+Document every generated test and helper. Put full JSDoc comments above each helper function and test utility, including a description, blank line, `@param` tags, and `@returns` for non-void helpers. Use `// Step N: ...` comments inside longer tests to label protocol phases such as manifest handoff, constructor funding, fill, event retrieval, and failure assertion.
 
 ## Required Passing Tests
 
 1. Secret contract key leakage and handoff: exercise the full manifest transport path, not a direct key pass. Buyer deploys/builds the escrow manifest; seller first registers or instantiates only the contract instance without the manifest key and proves private config/state reads fail; seller creates a recipient manifest transport key with `createManifestKeyPair()`; buyer encrypts the manifest to the seller's public key with `manifest.encrypt(...)`; seller decrypts with `EscrowManifest.decrypt(...)`, calls `decryptedManifest.register(sellerWallet)`, and then proves private config/state reads succeed.
 2. Role secret recovery: at every role-creating step, sample a role secret before the transaction, pass it into the contract call, then call `retrieveRoleSecret(wallet, node, escrow, callerAddress, startBlock)` and assert the returned secret equals the sampled secret. For construction, use `manifest.createdBlockNumber` as the start block and compare against `creatorRoleSecret.toBigInt()` or the explicitly supplied constructor secret.
-3. Atomic happy path: maker deposits with the creator role secret, filler fills, balances move correctly, escrow balances are emptied, phase becomes `FILLED`, and `getOrderFilledEvent(wallet, node, escrow, manifest.createdBlockNumber)` returns an `OrderFilled` event.
-4. Void before deposit: creator can move `CREATED -> VOID` with the creator role secret; deposit/fill after void fail.
-5. Void after deposit: creator can move `OPEN -> VOID` with the creator role secret; offered tokens refund to creator; fill after void fails.
+3. Atomic happy path: deployment funds the escrow in the constructor with the creator role secret and maker funding authwit, filler fills, balances move correctly, escrow balances are emptied, phase becomes `FILLED`, and `getOrderFilledEvent(wallet, node, escrow, manifest.createdBlockNumber)` returns an `OrderFilled` event whose decoded payload has `filled === true`.
+4. Void after construction funding: creator can move `OPEN -> VOID` with the creator role secret; offered tokens refund to creator; fill after void fails.
 
 ## Required Failure Tests
 
-- Non-creator cannot deposit or void, even with the escrow secret key.
+- Non-creator cannot void, even with the escrow secret key.
 - Creator calls with the wrong role secret fail.
 - Another caller reusing the creator's raw role secret fails because pseudonyms hash the caller address and secret together.
-- Fill before deposit fails.
-- Duplicate deposit fails.
+- Constructor funding fails if the maker lacks enough private balance.
 - Duplicate fill fails.
 - Void after fill fails.
-- Missing authwit fails.
-- Authwit for the wrong token or amount fails.
 - Insufficient private balance fails.
 
 For designs with `ACCEPTED` or `SETTLEMENT_IN_PROGRESS`, add tests that bind the accepting caller's role-secret pseudonym into state, retrieve the caller-addressed `RoleAdded` event, and reject later calls from a different pseudonym. Do not add time-window tests until the time pattern is explicitly implemented.

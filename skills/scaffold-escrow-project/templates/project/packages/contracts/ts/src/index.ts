@@ -1,6 +1,6 @@
 export {
     deployEscrowContract, deployTokenContract,
-    depositToEscrow, fillOTCOrder,
+    fillOTCOrder, voidEscrow,
     getPrivateTransferAuthwit, getEscrowConfig,
     getOrderFilledEvent, retrieveRoleSecret,
     expectBalancePrivate, getTokenContract, getEscrowContract,

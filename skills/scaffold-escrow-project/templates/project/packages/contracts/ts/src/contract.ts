@@ -24,7 +24,7 @@ import { EscrowManifest } from "./manifest.js";
 
 type DeployOpts = DeployOptions;
 type SendOpts = SendInteractionOptions<InteractionWaitOptions>;
-export type OrderFilledEvent = Record<string, never>;
+export type OrderFilledEvent = { filled: boolean };
 export type RoleAddedEvent = { secret: bigint };
 
 export async function deployEscrowContract(
@@ -43,6 +43,7 @@ export async function deployEscrowContract(
     manifest: EscrowManifest,
 }> {
     const creatorRoleSecret = opts.creatorRoleSecret ?? Fr.random();
+    const fundingNonce = Fr.random();
     const contractSecretKey = Fr.random();
     const contractPublicKeys = (await deriveKeys(contractSecretKey)).publicKeys;
     const contractDeployment = await OTCEscrowContract.deployWithPublicKeys(
@@ -50,18 +51,30 @@ export async function deployEscrowContract(
         sellTokenAddress, sellTokenAmount,
         buyTokenAddress, buyTokenAmount,
         creatorRoleSecret,
+        fundingNonce,
     );
-    const deployOpts = {
+    const deployOpts: DeployOpts = {
         from,
         skipClassPublication: true,
         skipInstancePublication: true,
+        universalDeploy: true,
+        contractAddressSalt: Fr.random(),
         ...(opts.send ?? {}),
     };
     const instance = await contractDeployment.getInstance(deployOpts);
     await wallet.registerContract(instance, OTCEscrowContractArtifact, contractSecretKey);
-    // The deployer needs the escrow's own address scoped in to read the partial-note + config back.
-    deployOpts.additionalScopes = [instance.address, ...(deployOpts.additionalScopes ?? [])];
-    const { contract, receipt } = await contractDeployment.send(deployOpts);
+    await wallet.registerSender(instance.address);
+    const sellToken = TokenContract.at(sellTokenAddress, wallet);
+    const { authwit } = await getPrivateTransferAuthwit(
+        wallet, from, sellToken, instance.address, instance.address, sellTokenAmount, fundingNonce,
+    );
+    const sendOpts = {
+        ...deployOpts,
+        // The deployer needs the escrow's own address scoped in to read escrow-owned notes back.
+        additionalScopes: [instance.address, ...(deployOpts.additionalScopes ?? [])],
+        authWitnesses: [authwit, ...(deployOpts.authWitnesses ?? [])],
+    };
+    const { contract, receipt } = await contractDeployment.send(sendOpts);
     if (receipt.blockNumber === undefined) {
         throw new Error("Escrow deployment receipt did not include a block number");
     }
@@ -91,28 +104,6 @@ export async function deployTokenContract(
     return { contract, instance };
 }
 
-export async function depositToEscrow(
-    wallet: Wallet, from: AztecAddress,
-    escrow: OTCEscrowContract, token: TokenContract, amount: bigint,
-    creatorRoleSecret: Fr,
-    opts: { send?: SendOpts }
-        = { send: { from, additionalScopes: [escrow.address] } }
-): Promise<TxHash> {
-    escrow = escrow.withWallet(wallet);
-    const sendOpts = {
-        from,
-        ...(opts.send ?? {}),
-        additionalScopes: [escrow.address, ...(opts.send?.additionalScopes ?? [])],
-    };
-    const { nonce, authwit } = await getPrivateTransferAuthwit(
-        wallet, from, token, escrow.address, escrow.address, amount,
-    );
-    const { receipt } = await escrow.methods.deposit_tokens(nonce, creatorRoleSecret)
-        .with({ authWitnesses: [authwit] })
-        .send(sendOpts);
-    return receipt.txHash;
-}
-
 export async function fillOTCOrder(
     wallet: Wallet, from: AztecAddress,
     escrow: OTCEscrowContract, token: TokenContract, amount: bigint,
@@ -134,11 +125,29 @@ export async function fillOTCOrder(
     return receipt.txHash;
 }
 
+export async function voidEscrow(
+    wallet: Wallet, from: AztecAddress,
+    escrow: OTCEscrowContract, creatorRoleSecret: Fr,
+    opts: { send?: SendOpts }
+        = { send: { from, additionalScopes: [escrow.address] } }
+): Promise<TxHash> {
+    escrow = escrow.withWallet(wallet);
+    const sendOpts = {
+        from,
+        ...(opts.send ?? {}),
+        additionalScopes: [escrow.address, ...(opts.send?.additionalScopes ?? [])],
+    };
+    const refundNonce = Fr.random();
+    const { receipt } = await escrow.methods.void_order(refundNonce, creatorRoleSecret)
+        .send(sendOpts);
+    return receipt.txHash;
+}
+
 export async function getPrivateTransferAuthwit(
     wallet: Wallet, from: AztecAddress,
     token: TokenContract, caller: AztecAddress, to: AztecAddress, amount: bigint,
+    nonce: Fr = Fr.random(),
 ): Promise<{ authwit: AuthWitness, nonce: Fr }> {
-    const nonce = Fr.random();
     const call = await token.withWallet(wallet).methods
         .transfer_private_to_private(from, to, amount, nonce)
         .getFunctionCall();

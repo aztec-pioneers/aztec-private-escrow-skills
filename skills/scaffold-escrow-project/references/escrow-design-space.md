@@ -8,7 +8,7 @@ For fresh projects or lifecycle changes, load `design-intake.md` and confirm pha
 
 | Shape | Use when | Typical state |
 |---|---|---|
-| OTC atomic swap | Two parties swap fixed assets atomically | Terms, maker deposit asset, partial-note commitment, `OrderFilled` event |
+| OTC atomic swap | Two parties swap fixed assets atomically | Terms, constructor-funded maker asset, partial-note commitment, `OrderFilled` event |
 | RFQ or intent escrow | A maker publishes private terms and takers can satisfy them | Terms, optional acceptor pseudonym after `ACCEPTED`, expiry, `OrderFilled` event |
 | Milestone escrow | Funds unlock after private milestone proofs or approvals | Deposits, milestone state, approver roles, release/cancel phase rules |
 | Private orderbook entry | Many potential takers can discover and fill a private listing | Listing commitment, optional encrypted handoff, `OrderFilled` event |
@@ -18,7 +18,7 @@ For fresh projects or lifecycle changes, load `design-intake.md` and confirm pha
 
 Load `lifecycle-phases.md` for every escrow shape, including one-shot atomic swaps. Use the smallest phase graph that protects both sides:
 
-- Atomic token swaps usually need `CREATED`, `OPEN`, `VOID`, and `FILLED`.
+- Atomic token swaps usually need `OPEN`, `VOID`, and `FILLED`; constructor funding makes `OPEN` the initial state.
 - Offchain payment or proof-generation flows usually add `ACCEPTED`.
 - Cancellable or delayed delivery flows usually add `SETTLEMENT_IN_PROGRESS`.
 

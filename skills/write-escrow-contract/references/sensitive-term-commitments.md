@@ -41,4 +41,4 @@ Treat sensitive plaintexts like key material:
 
 ## Event Delivery Exception
 
-`OrderFilled` may carry delivery data when the escrow design intentionally uses a private event as the delivery channel, such as a locker-code-style handoff to the escrow address. Treat that as an explicit design choice, not the default. When capture-now-decrypt-later risk matters, put a salted commitment in `OrderFilled` and deliver plaintext offchain through the same handoff channel as the contract secret key.
+`OrderFilled` always carries the `filled: true` receipt marker. It may carry additional delivery data only when the escrow design intentionally uses a private event as the delivery channel, such as a locker-code-style handoff to the escrow address. Treat that as an explicit design choice, not the default. When capture-now-decrypt-later risk matters, put a salted commitment in `OrderFilled` and deliver plaintext offchain through the same handoff channel as the contract secret key.

@@ -36,13 +36,13 @@ Prefer the richest available input UI:
 
 - If a multiselect UI is available, recommend a phase set and let the user toggle phases.
 - If `request_user_input` is available but only supports mutually-exclusive choices, ask for one preset:
-  - `Atomic`: `CREATED`, `OPEN`, `VOID`, `FILLED`
-  - `Accept`: `CREATED`, `OPEN`, `VOID`, `ACCEPTED`, `FILLED`
-  - `Delayed settlement`: `CREATED`, `OPEN`, `VOID`, `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, `FILLED`
+  - `Atomic`: `OPEN`, `VOID`, `FILLED`
+  - `Accept`: `OPEN`, `VOID`, `ACCEPTED`, `FILLED`
+  - `Delayed settlement`: `OPEN`, `VOID`, `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, `FILLED`
 - If no structured input is available, ask in chat:
 
 ```text
-I recommend phases: CREATED, OPEN, VOID, [recommended optional phases], FILLED.
+I recommend phases: OPEN, VOID, [recommended optional phases], FILLED.
 Reply "ok" or send the exact phase list you want.
 ```
 
@@ -76,7 +76,7 @@ If there is any ambiguity, ask the user to confirm the field split before writin
 
 Default split:
 
-- `ConfigNote`: immutable creator pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms.
+- `ConfigNote`: immutable creator pseudonym, offered asset, offered amount, requested asset/proof/delivery terms, partial note, immutable windows, salted commitments to sensitive terms. The default constructor funds the offered asset into escrow before the state note is initialized.
 - `StateNote`: phase, and only the runtime-bound taker/filler pseudonyms, timestamps, deadlines, or recovery metadata required by the selected phases.
 
 Default role-secret bootstrap:
@@ -98,17 +98,17 @@ Sensitive plaintexts such as usernames, account handles, addresses, locker codes
 
 ## OrderFilled Payload
 
-Always decide the `OrderFilled` payload during intake. Default to no payload when the fill action settles atomically and the event is only a receipt.
+Always decide whether `OrderFilled` needs payload beyond its required receipt marker. Default to `filled: true` when the fill action settles atomically and the event is only a receipt.
 
 Ask compactly when settlement may need event-carried data:
 
 ```text
-OrderFilled can be a no-payload receipt. Does settlement require the event to carry any data, such as a delivery/proof commitment or scalar handoff payload? Reply "none" or list the exact fields.
+OrderFilled always includes `filled: true` as a receipt marker. Does settlement require any extra data, such as a delivery/proof commitment or scalar handoff payload? Reply "none" or list the exact fields.
 ```
 
 Rules:
 
-- Do not add placeholder fields for future flexibility.
+- Do not add placeholder fields beyond the required `filled: true` receipt marker.
 - Do not include random values, zero-filled delivery slots, partial-note commitments, filler pseudonyms, or token-settlement metadata unless the user explicitly chooses those fields.
-- For atomic token settlement, use a no-payload `OrderFilled` unless the user states a specific payload requirement.
+- For atomic token settlement, use only `OrderFilled { filled: true }` unless the user states a specific extra payload requirement.
 - For sensitive recoverable terms, prefer salted commitments in config/state and offchain plaintext handoff.

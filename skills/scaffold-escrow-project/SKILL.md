@@ -19,7 +19,7 @@ Create a contracts + TypeScript SDK project for Aztec private escrows. The defau
 - `references/design-intake.md` - phase/timing/config-state questions for fresh or ambiguous designs.
 - `references/private-state-and-handoff.md` - contract secret key, shared private notes, role-secret boundary.
 - `references/secret-contracts.md` - `deployWithPublicKeys`, secret key registration, participant handoff.
-- `references/lifecycle-phases.md` - `CREATED`, `OPEN`, `VOID`, `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, `FILLED`.
+- `references/lifecycle-phases.md` - `OPEN`, `VOID`, `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, `FILLED`.
 - `references/manifest-schema.md` - minimal escrow manifest and encrypted transport.
 - `references/testing-strategy.md` - Bun/localnet test layout and required cases.
 - `references/escrow-design-space.md` - choosing a non-OTC escrow shape.
@@ -71,6 +71,23 @@ The contracts package test script must stay targeted:
 
 Do not let Bun recursively discover `deps/aztec-standards` tests. Do not add `escrow.test.ts` from this skill until the user provides the current generated example.
 
+When generating tests, keep the test cases in `packages/contracts/ts/test/escrow.test.ts`, but put reusable helpers in `packages/contracts/ts/test/utils/utils.ts`. If utilities grow large, split additional files under `packages/contracts/ts/test/utils/` and re-export them from `utils.ts`.
+
+## Documentation Style
+
+Document generated code aggressively. Above every generated function, class method, exported type helper, and test utility, use full JSDoc with a description, blank line, `@param` for each parameter, and `@returns` for non-void returns:
+
+```ts
+/**
+ * Description here.
+ *
+ * @param x - Parameter description.
+ * @returns Return value description.
+ */
+```
+
+Inside longer functions/tests, mark each logical phase with step comments, for example `// Step 1: Fund maker asset into escrow during construction`. Comments should explain protocol intent, privacy assumptions, and why the step exists, not restate single-line syntax.
+
 ## Non-Negotiables
 
 1. Target Aztec `4.2.0`, Bun, `EmbeddedWallet`, workspace catalog pinning, package imports, and NodeNext `.js` suffixes.
@@ -78,5 +95,5 @@ Do not let Bun recursively discover `deps/aztec-standards` tests. Do not add `es
 3. Use secret contract handoff through `EscrowManifest`: address, serialized instance, required contract secret key, creation block, optional tx hash.
 4. Use contract-owned `ConfigNote`/`StateNote` with storage owner `self.address`; do not add manual note `owner` or randomness fields.
 5. Use caller-sampled role secrets and caller-bound pseudonyms; emit `RoleAdded { secret }` to the caller only.
-6. Use `StateNote` for all phase/cancel/fill state and avoid custom fill/deposit nullifiers by default.
-7. Emit `OrderFilled` on every fill, no payload unless intake explicitly confirms event-carried data.
+6. Use constructor funding plus `StateNote` for all phase/cancel/fill state and avoid custom fill/funding nullifiers by default.
+7. Emit `OrderFilled { filled: true }` on every fill; add extra payload fields only when intake explicitly confirms event-carried data.

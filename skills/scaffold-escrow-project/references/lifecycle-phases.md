@@ -10,8 +10,7 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 
 | Phase | Meaning | Typical next phases |
 |---|---|---|
-| `CREATED` | Constructor has written the escrow config. The maker may have created terms and any receive-side partial note, but the escrow is not necessarily funded. | `OPEN`, `VOID` |
-| `OPEN` | Maker has deposited the offered asset into the escrow. The order can be filled, accepted, or voided according to its rules. | `ACCEPTED`, `FILLED`, `VOID` |
+| `OPEN` | Constructor has written config, funded the escrow with the maker's offered asset, and initialized state. The order can now be filled, accepted, or voided according to its rules. | `ACCEPTED`, `FILLED`, `VOID` |
 | `VOID` | Terminal cancellation/refund state. Return whatever the escrow owns to the maker/creator using the selected asset's private transfer primitive. | terminal |
 | `ACCEPTED` | Optional reservation state for non-atomic fills. The accepting caller's role-secret pseudonym is stored in state so the maker cannot void while that caller is actively trying to fill. | `FILLED`, `SETTLEMENT_IN_PROGRESS`, explicit timeout/recovery path |
 | `SETTLEMENT_IN_PROGRESS` | Optional delayed-settlement state. The taker has proven an action or initiated delivery, but final release requires later proof, delivery, or timeout handling. | `FILLED`, explicit timeout/recovery/dispute path |
@@ -19,8 +18,8 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 
 ## Defaults
 
-- Do not move maker funds in the constructor unless the user explicitly has a working authwit pattern for deploy-time transfer. Treat `CREATED` as config initialization and `OPEN` as the deposit transaction.
-- For atomic one-shot onchain settlement, use `CREATED -> OPEN -> FILLED` with `VOID` before fill. This is usually token-to-token, but can be any delivery that settles fully in one onchain fill action.
+- Default constructors both create the escrow and privately fund it with the maker's offered asset. The initial state is `OPEN`; do not add a separate unfunded pre-open phase unless the user explicitly asks for a legacy two-step funding flow.
+- For atomic one-shot onchain settlement, use `OPEN -> FILLED` with `VOID` before fill. This is usually token-to-token, but can be any delivery that settles fully in one onchain fill action.
 - Add `ACCEPTED` when filling requires offchain action or proof generation and the taker needs protection from maker cancellation.
 - `ACCEPTED` is runtime caller binding, not a default allowlist. Unless the user explicitly wants a pre-authorized counterparty, any caller may accept by sampling or presenting their own role secret and writing its caller-bound pseudonym into `StateNote`.
 - Add `SETTLEMENT_IN_PROGRESS` when proof of initiation is not proof of final delivery, such as cancellable ecommerce orders or locker-style deliveries that still need a recipient handoff.
@@ -33,8 +32,8 @@ Before implementing lifecycle state for a fresh project, confirm the phase set w
 2. Stateful phase transitions should consume or replace the prior phase/state note. Do not add custom transition nullifiers in the default templates.
 3. `VOID` after `ACCEPTED` or `SETTLEMENT_IN_PROGRESS` must be an explicit timeout/recovery rule, not an implicit maker escape hatch.
 4. Time windows such as accept, fill, settlement, or recovery windows should be immutable contract configuration once deployed.
-5. Role/auth rules belong in Noir entrypoints. Contract secret key possession may let someone read shared state, but it is not itself maker/taker authority. Store creator pseudonyms in config when known at construction; store taker/filler pseudonyms in state only when a runtime transition such as `ACCEPTED` binds the caller. Later role-gated calls pass the same role secret and recompute the caller-bound pseudonym inline.
-6. Token method names are token-standard-specific. The lifecycle should name capabilities like deposit, refund, payout, and commitment completion instead of hard-coding one token contract API.
+5. Role/auth rules belong in Noir entrypoints. Contract secret key possession may let someone read shared state, but it is not itself maker/taker authority. Store creator pseudonyms in config during construction; store taker/filler pseudonyms in state only when a runtime transition such as `ACCEPTED` binds the caller. Later role-gated calls pass the same role secret and recompute the caller-bound pseudonym inline.
+6. Token method names are token-standard-specific. The lifecycle should name capabilities like constructor funding, refund, payout, and commitment completion instead of hard-coding one token contract API.
 7. Mutable phase reads/replacements must deliver the replacement `StateNote`.
 8. Use the anchor block timestamp for deadline checks.
 9. Every successful `FILLED` transition should emit an `OrderFilled` private event to the escrow address with `MessageDelivery.ONCHAIN_CONSTRAINED`.
@@ -56,5 +55,5 @@ For token-to-token fills where the maker should receive privately:
 
 - Token-to-token: taker transfers into escrow, escrow completes maker's partial note, escrow pays taker.
 - Proof-only delivery: taker submits a zkTLS/zkEmail/private proof matching config, then escrow pays taker.
-- Private message delivery: ask during intake whether `OrderFilled` must carry a delivery commitment or intentionally event-carried scalar payload. If not explicitly required, keep `OrderFilled` as a no-payload receipt and deliver plaintext offchain or through a separate purpose-built event/note.
+- Private message delivery: ask during intake whether `OrderFilled` must carry a delivery commitment or intentionally event-carried scalar payload beyond the required `filled: true` marker. If not explicitly required, keep only the boolean receipt marker and deliver plaintext offchain or through a separate purpose-built event/note.
 - Delayed delivery: taker proves initiation, phase advances to `SETTLEMENT_IN_PROGRESS`, and final release waits for delivery proof or configured timeout handling.

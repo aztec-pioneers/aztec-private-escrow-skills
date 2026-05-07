@@ -19,8 +19,9 @@ Participants who need the same private facts should read contract-owned private 
 1. Generate a contract secret key.
 2. Derive public keys and deploy with `deployWithPublicKeys`.
 3. Store shared escrow data under storage owner `self.address`.
-4. Register the contract instance and secret key in every participant wallet that should read shared state.
+4. Register the contract instance, secret key, and escrow sender in every participant wallet that should read shared state: `wallet.registerContract(instance, artifact, secretKey)` then `wallet.registerSender(instance.address)`.
 5. Include `additionalScopes: [escrow.address]` on private calls that read or nullify escrow-owned notes.
+6. For the default funded constructor, compute/register the escrow instance before creating the maker's token authwit, then send deployment with that authwit and initialize state directly to `OPEN`.
 
 Prefer:
 

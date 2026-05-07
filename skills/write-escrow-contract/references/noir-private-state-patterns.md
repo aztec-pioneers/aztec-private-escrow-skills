@@ -19,14 +19,14 @@ Represent mutable phases separately from immutable order terms. Use `StateNote` 
 
 Store at least:
 
-- Current phase discriminant, such as `CREATED`, `OPEN`, `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, `VOID`, or `FILLED`.
+- Current phase discriminant, such as `OPEN`, `ACCEPTED`, `SETTLEMENT_IN_PROGRESS`, `VOID`, or `FILLED`.
 - Bound taker or taker commitment when entering `ACCEPTED`.
 - Immutable timing windows copied from config or constructor args.
 - Terminal phase and deadline fields needed to prevent impossible transitions, such as filling after `VOID` or voiding during a live accepted window.
 
-Use `ConfigNote` for immutable terms and `StateNote` for mutable phase data. Atomic one-shot onchain settlement flows use a small state graph (`CREATED`, `OPEN`, `VOID`, `FILLED`); longer flows with accept, settlement-in-progress, or timeout recovery extend the same state note.
+Use `ConfigNote` for immutable terms and `StateNote` for mutable phase data. Atomic one-shot onchain settlement flows use a small state graph (`OPEN`, `VOID`, `FILLED`) because constructor funding makes the order immediately actionable. Longer flows with accept, settlement-in-progress, or timeout recovery extend the same state note.
 
-Do not add custom order-level nullifiers for default deposit/fill replay protection. Primitive token and note operations still create their own nullifiers. Use `StateNote` terminal phases to prevent filling after `VOID` or after `FILLED`.
+Do not add custom order-level nullifiers for default constructor-funding or fill replay protection. Primitive token and note operations still create their own nullifiers. Use `StateNote` terminal phases to prevent filling after `VOID` or after `FILLED`.
 
 ## Mutable Reads
 

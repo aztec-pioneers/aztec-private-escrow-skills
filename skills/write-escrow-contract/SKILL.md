@@ -40,6 +40,21 @@ Template notes:
 - `templates/state-note-template.md` - state rules.
 - `templates/order-filled-event-template.md` - fill receipt event rules.
 
+## Documentation Style
+
+Document generated Noir and TypeScript code aggressively. Above every generated function, entrypoint, helper, class method, and exported type helper, use full doc comments with a description, blank line, `@param` for each parameter, and `@returns` for non-void returns:
+
+```ts
+/**
+ * Description here.
+ *
+ * @param x - Parameter description.
+ * @returns Return value description.
+ */
+```
+
+Inside longer functions, mark each logical phase with step comments, for example `// Step 1: Verify caller role pseudonym` and `// Step 2: Move escrow state forward`. Comments should explain protocol intent, privacy assumptions, and state/token flow, not restate obvious syntax.
+
 ## Non-Negotiables
 
 1. Target Aztec `4.2.0` and poseidon `v0.3.0`.
@@ -49,10 +64,10 @@ Template notes:
 5. Do not add manual note `owner` fields or note randomness to `ConfigNote`/`StateNote`.
 6. Use caller-sampled role secrets: hash `[caller.to_field(), role_secret]`, store only the pseudonym, emit `RoleAdded { secret }` to the caller.
 7. Atomic one-shot fills are open to any filler satisfying settlement terms; bind taker/filler only for `ACCEPTED`, delayed settlement, allowlists, or explicit role-restricted phases.
-8. Do not add custom order-level deposit/fill nullifiers by default. Use `StateNote` terminal phases.
-9. Emit `OrderFilled` to `self.address` with `ONCHAIN_CONSTRAINED` on every successful fill; no payload unless intake explicitly confirms event-carried data.
+8. Do not add custom order-level funding/fill nullifiers by default. Use constructor funding and `StateNote` terminal phases.
+9. Emit `OrderFilled { filled: true }` to `self.address` with `ONCHAIN_CONSTRAINED` on every successful fill; add extra payload fields only when intake explicitly confirms event-carried data.
 10. Use `ONCHAIN_CONSTRAINED` for contract-owned notes and escrow-addressed fill events; use `ONCHAIN_UNCONSTRAINED` for `RoleAdded` sent to the caller.
-11. Token calls are adapter-specific. Inspect the selected binding/source before changing concrete private deposit/refund/payout/commitment calls.
+11. Token calls are adapter-specific. Inspect the selected binding/source before changing concrete constructor-funding/refund/payout/commitment calls.
 12. For atomic onchain settlement, complete maker receive-side partial notes from escrow-owned funds, with escrow as filler.
 13. Use anchor block timestamp for deadline checks.
 14. Generated tests use `EmbeddedWallet.create(node, { ephemeral: true, pxeConfig: { proverEnabled } })`; default `proverEnabled = false`.

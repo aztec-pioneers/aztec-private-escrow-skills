@@ -3,12 +3,11 @@ use aztec::{
     protocol::traits::{Deserialize, Packable, Serialize},
 };
 
-pub global PHASE_CREATED: Field = 0;
-pub global PHASE_OPEN: Field = 1;
-pub global PHASE_VOID: Field = 2;
-pub global PHASE_ACCEPTED: Field = 3;
-pub global PHASE_SETTLEMENT_IN_PROGRESS: Field = 4;
-pub global PHASE_FILLED: Field = 5;
+pub global PHASE_OPEN: Field = 0;
+pub global PHASE_VOID: Field = 1;
+pub global PHASE_ACCEPTED: Field = 2;
+pub global PHASE_SETTLEMENT_IN_PROGRESS: Field = 3;
+pub global PHASE_FILLED: Field = 4;
 
 #[derive(Eq, Serialize, Deserialize, Packable)]
 #[note]
@@ -17,9 +16,9 @@ pub struct StateNote {
 }
 
 impl StateNote {
-    pub fn created() -> Self {
+    pub fn open() -> Self {
         StateNote {
-            phase: PHASE_CREATED,
+            phase: PHASE_OPEN,
         }
     }
 

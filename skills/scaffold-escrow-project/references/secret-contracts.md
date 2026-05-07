@@ -14,29 +14,50 @@ import { deriveKeys } from "@aztec/stdlib/keys";
 
 const contractSecretKey = Fr.random();
 const publicKeys = (await deriveKeys(contractSecretKey)).publicKeys;
+const fundingNonce = Fr.random();
+
+const deployOpts = {
+    from: deployer,
+    skipClassPublication: true,
+    skipInstancePublication: true,
+    universalDeploy: true,
+    contractAddressSalt: Fr.random(),
+};
 
 const deployment = EscrowContract.deployWithPublicKeys(
     publicKeys,
     wallet,
     ...constructorArgs,
+    fundingNonce,
 );
 
-const instance = await deployment.getInstance();
+const instance = await deployment.getInstance(deployOpts);
 
 await wallet.registerContract(instance, EscrowContractArtifact, contractSecretKey);
+await wallet.registerSender(instance.address);
+
+const { authwit: fundingAuthwit } = await getPrivateTransferAuthwit(
+    wallet,
+    deployer,
+    offeredToken,
+    instance.address,
+    instance.address,
+    offeredAmount,
+    fundingNonce,
+);
 
 const sendOpts = {
-    from: deployer,
-    skipClassPublication: true,
-    skipInstancePublication: true,
+    ...deployOpts,
     additionalScopes: [instance.address],
+    authWitnesses: [fundingAuthwit],
 };
 
-await deployment.simulate(sendOpts);
 const { contract } = await deployment.send(sendOpts);
 ```
 
-`additionalScopes: [instance.address]` is required when the constructor initializes contract-owned private storage that the deployer/PXE must read during proving.
+`registerContract(..., contractSecretKey)` gives the PXE the escrow keys. `registerSender(instance.address)` and `additionalScopes: [instance.address]` let the deployer PXE discover/read escrow-owned notes during deployment and later private calls.
+
+When the constructor also funds the escrow, compute the final instance before creating the maker's token authwit. The token authwit should authorize the escrow instance address as caller, use the same nonce passed to the constructor, and be included in deploy `authWitnesses`.
 
 If the address must be deterministic, use the same `contractAddressSalt` and address mode when computing the instance and sending the deployment. Do not compute an instance with one deployment shape and send with another.
 
